@@ -85,6 +85,19 @@ export default function JsonFormatter() {
     setIndentLevel(event.target.value);
   };
 
+  // 修复引号转义问题
+  const InfoBlock = () => (
+    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+      <strong>提示：</strong> 
+      <br />
+      将JSON字符串粘贴到左侧文本框中，点击&quot;格式化&quot;按钮将其格式化。
+      <br />
+      您也可以点击&quot;压缩&quot;按钮将格式化的JSON压缩为单行。
+      <br />
+      支持对象、数组和基本数据类型的格式化。
+    </Typography>
+  );
+
   return (
     <Box>
       <Grid container spacing={3}>

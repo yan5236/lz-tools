@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Box, Grid, Paper, Typography, TextField, Button, Snackbar, Alert, FormControl, InputLabel, Select, MenuItem, SelectChangeEvent } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -24,6 +24,11 @@ export default function TimestampConverter() {
     return () => clearInterval(timer);
   }, []);
 
+  // 验证日期是否有效
+  const isValidDate = (date: Date): boolean => {
+    return !isNaN(date.getTime());
+  };
+
   // 将时间戳转换为日期时间字符串
   const timestampToDateTime = (ts: number) => {
     const date = new Date(ts * 1000);
@@ -44,7 +49,7 @@ export default function TimestampConverter() {
 
   // 将日期时间字符串转换为时间戳
   const dateTimeToTimestamp = (dt: string) => {
-    let date;
+    let date: Date | undefined;
     
     // 尝试解析不同格式的日期字符串
     try {
@@ -81,7 +86,7 @@ export default function TimestampConverter() {
         date = new Date(dt);
       }
       
-      if (isNaN(date.getTime())) {
+      if (!date || isNaN(date.getTime())) {
         throw new Error('无效的日期时间格式');
       }
       

@@ -336,9 +336,9 @@ export default function ImageCompress() {
       
       try {
         // 检查是否需要调整大小
-        let needResize = false;
         let width = img.width;
         let height = img.height;
+        let needResize = false;
         
         if (width > maxWidth) {
           height = Math.floor(height * (maxWidth / width));
@@ -351,9 +351,6 @@ export default function ImageCompress() {
           height = maxHeight;
           needResize = true;
         }
-        
-        // 如果不需要调整大小，并且格式没有变化，并且质量设置较高，则可能不需要压缩
-        const originalFormat = file.type;
         
         // 创建canvas元素
         const canvas = canvasRef.current;
@@ -493,9 +490,9 @@ export default function ImageCompress() {
     img.onload = () => {
       console.log('图片加载成功，尺寸:', img.width, 'x', img.height);
       // 检查是否需要调整大小
-      let needResize = false;
       let width = img.width;
       let height = img.height;
+      let needResize = false;
       
       if (width > maxWidth) {
         height = Math.floor(height * (maxWidth / width));
@@ -508,9 +505,6 @@ export default function ImageCompress() {
         height = maxHeight;
         needResize = true;
       }
-      
-      // 如果不需要调整大小，并且格式没有变化，并且质量设置较高，则可能不需要压缩
-      const originalFormat = selectedFile.type;
       
       // 创建canvas元素
       const canvas = canvasRef.current;
@@ -559,7 +553,7 @@ export default function ImageCompress() {
             const compSize = blob.size;
             
             // 比较压缩前后的大小，如果压缩后更大，则保留原始图片
-            if (compSize >= originalSize && !needResize && format === originalFormat) {
+            if (compSize >= originalSize && !needResize && format === selectedFile.type) {
               // 压缩后反而变大，使用原始图片
               setCompressedUrl(previewUrl);
               setCompressedSize(originalSize);
@@ -724,11 +718,9 @@ export default function ImageCompress() {
       
       // 添加所有处理过的文件到zip
       let fileCount = 0;
-      let totalFiles = processedFiles.length;
       
-      processedFiles.forEach((file, index) => {
+      processedFiles.forEach(file => {
         if (!file.compressedUrl) {
-          totalFiles--;
           return;
         }
         
@@ -1140,6 +1132,7 @@ export default function ImageCompress() {
                   }}
                 >
                   {compressedUrl && viewMode === 'compressed' ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={compressedUrl}
                       alt="压缩后预览"
@@ -1150,6 +1143,7 @@ export default function ImageCompress() {
                       }}
                     />
                   ) : previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={previewUrl}
                       alt="原始图片预览"
