@@ -1,93 +1,93 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Box, TextField, Button, Grid, Paper, Typography, Snackbar, Alert, FormControl, RadioGroup, FormControlLabel, Radio } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 export default function UrlEncoder() {
-  const [input, setInput] = useState('');
-  const [output, setOutput] = useState('');
+  const [inputText, setInputText] = useState('');
+  const [outputText, setOutputText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [mode, setMode] = useState<'encode' | 'decode'>('encode');
   const [encodeMode, setEncodeMode] = useState<'normal' | 'component'>('normal');
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // 处理模式切换
   const handleModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setMode(event.target.value as 'encode' | 'decode');
-    setOutput('');
+    setOutputText('');
     setError(null);
   };
 
   // 处理编码模式切换
   const handleEncodeModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setEncodeMode(event.target.value as 'normal' | 'component');
-    setOutput('');
+    setOutputText('');
     setError(null);
   };
 
   // 处理编码/解码
   const handleConvert = () => {
-    if (!input.trim()) {
+    if (!inputText.trim()) {
       setError('请输入需要处理的内容');
       return;
     }
 
+    setError(null);
+    
     try {
       if (mode === 'encode') {
         // URL编码
         if (encodeMode === 'normal') {
           // 普通编码 - encodeURI
-          setOutput(encodeURI(input));
+          setOutputText(encodeURI(inputText));
         } else {
           // 组件编码 - encodeURIComponent
-          setOutput(encodeURIComponent(input));
+          setOutputText(encodeURIComponent(inputText));
         }
-        setError(null);
       } else {
         // URL解码
-        try {
-          if (encodeMode === 'normal') {
-            // 普通解码 - decodeURI
-            setOutput(decodeURI(input));
-          } else {
-            // 组件解码 - decodeURIComponent
-            setOutput(decodeURIComponent(input));
-          }
-          setError(null);
-        } catch (e) {
-          setError('解码失败，请确保输入的是有效的URL编码字符串');
-          setOutput('');
+        if (encodeMode === 'normal') {
+          // 普通解码 - decodeURI
+          setOutputText(decodeURI(inputText));
+        } else {
+          // 组件解码 - decodeURIComponent
+          setOutputText(decodeURIComponent(inputText));
         }
       }
-    } catch (e) {
-      if (e instanceof Error) {
-        setError(`处理过程出现错误: ${e.message}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(`处理失败: ${error.message}`);
       } else {
-        setError('未知错误，请检查输入内容');
+        setError('处理过程中发生未知错误');
       }
-      setOutput('');
     }
   };
 
-  // 处理复制到剪贴板
+  // 处理文本变化
+  const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(event.target.value);
+  };
+
+  // 复制结果
   const handleCopy = () => {
-    if (output) {
-      navigator.clipboard.writeText(output)
+    if (outputText) {
+      navigator.clipboard.writeText(outputText)
         .then(() => {
           setSnackbarOpen(true);
         })
-        .catch(err => {
-          console.error('复制失败:', err);
+        .catch(() => {
+          setError('复制到剪贴板失败');
         });
     }
   };
 
-  // 处理清空
+  // 清空输入
   const handleClear = () => {
-    setInput('');
-    setOutput('');
+    setInputText('');
+    setOutputText('');
     setError(null);
   };
 
@@ -135,8 +135,9 @@ export default function UrlEncoder() {
             label={mode === 'encode' ? '输入要编码的文本' : '输入要解码的URL字符串'}
             multiline
             rows={6}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={inputText}
+            onChange={handleTextChange}
+            inputRef={inputRef}
             fullWidth
             variant="outlined"
             placeholder={mode === 'encode' ? '请输入需要URL编码的文本' : '请输入需要解码的URL编码字符串'}
@@ -172,14 +173,14 @@ export default function UrlEncoder() {
               label={mode === 'encode' ? 'URL编码结果' : '解码后的文本'}
               multiline
               rows={6}
-              value={output}
+              value={outputText}
               fullWidth
               variant="outlined"
               InputProps={{
                 readOnly: true,
               }}
             />
-            {output && (
+            {outputText && (
               <Button
                 variant="contained"
                 color="primary"

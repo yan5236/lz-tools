@@ -85,6 +85,17 @@ export default function JsonFormatter() {
     setIndentLevel(event.target.value);
   };
 
+  // 修复引号转义问题
+  const InfoBlock = () => (
+    <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+      {`说明: 此工具可以格式化JSON字符串。如果您的JSON包含引号，请确保它们已正确转义。`}
+      <br />
+      {`例如: { "message": "Hello \"World\"" }`}
+      <br />
+      {`或者将双引号替换为HTML实体: { "message": "Hello &quot;World&quot;" }`}
+    </Typography>
+  );
+
   return (
     <Box>
       <Grid container spacing={3}>
