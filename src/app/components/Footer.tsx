@@ -107,7 +107,7 @@ export default function Footer() {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                 <GitHubIcon sx={{ mr: 1, color: 'primary.main' }} />
                 <Link
-                  href="https://github.com/lzgongju/lz-tools"
+                  href="https://github.com/yan5236/lz-tools"
                   sx={{ 
                     color: 'text.secondary',
                     '&:hover': { color: 'primary.main' },

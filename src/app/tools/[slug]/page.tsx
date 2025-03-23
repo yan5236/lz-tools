@@ -17,10 +17,9 @@ function isValidToolId(slug: string): boolean {
 }
 
 // 页面组件 - 使用async函数
-export default async function Page({ params }: { params: { slug: string } }) {
-  // 确保params是已解析的
-  const resolvedParams = params;
-  const slug = resolvedParams.slug;
+export default function Page({ params }: { params: { slug: string } }) {
+  // 获取slug参数
+  const { slug } = params;
   
   // 如果工具ID无效，返回404
   if (!isValidToolId(slug)) {

@@ -110,7 +110,9 @@ export default function TimestampConverter() {
         return;
       }
       
-      setConvertedDateTime(timestampToDateTime(ts));
+      const dateTimeValue = timestampToDateTime(ts);
+      setInputDateTime(dateTimeValue);
+      setConvertedDateTime(dateTimeValue);
       setConvertedTimestamp(ts.toString());
       setError(null);
     } catch (e) {
