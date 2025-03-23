@@ -99,6 +99,10 @@ lz-tools/
 
 [![Star History Chart](https://api.star-history.com/svg?repos=yan5236/lz-tools&type=Date)](https://www.star-history.com/#yan5236/lz-tools&Date)
 
+# 一键部署到 Vercel
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyan5236%2Flz-tools)
+
 ## 许可
 
 MIT
