@@ -13,8 +13,22 @@ const roboto = Roboto({
 });
 
 export const metadata: Metadata = {
-  title: "LZ小工具 - 在线实用工具集合",
+  title: "LZ小工具 - 在线免费实用工具集合",
   description: "LZ小工具是一个免费的在线工具集合，包含JSON格式化、Base64编解码、URL编解码、时间戳转换等多种实用工具",
+  keywords: "在线工具,免费工具,JSON格式化,Base64编解码,URL编解码,时间戳转换,哈希生成,颜色转换,图片压缩",
+  authors: [{ name: "LZ小工具团队" }],
+  creator: "LZ小工具",
+  publisher: "LZ小工具",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  }
 };
 
 export default function RootLayout({
@@ -26,6 +40,26 @@ export default function RootLayout({
     <html lang="zh-CN">
       <head>
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              "name": "LZ小工具",
+              "url": "https://lztools.nanhaiblog.top",
+              "description": "LZ小工具是一个免费的在线工具集合，包含JSON格式化、Base64编解码、URL编解码等多种实用工具",
+              "potentialAction": {
+                "@type": "SearchAction",
+                "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": "https://lztools.nanhaiblog.top/tools?q={search_term_string}"
+                },
+                "query-input": "required name=search_term_string"
+              }
+            })
+          }}
+        />
       </head>
       <body className={roboto.className}>
         <ThemeProvider>

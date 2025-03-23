@@ -9,6 +9,7 @@ LZ小工具是一个基于Next.js 14和Material Design 3设计的现代化在线
 - 响应式布局，适配各种设备
 - 模块化设计，易于扩展
 - 无服务器架构，完全在客户端运行
+- SEO优化，提高搜索引擎可见性
 
 ## 包含工具
 
@@ -63,7 +64,9 @@ lz-tools/
 │   │   ├── components/     # 公共组件
 │   │   ├── tools/          # 工具页面路由
 │   │   ├── layout.tsx      # 全局布局
-│   │   └── page.tsx        # 首页
+│   │   ├── page.tsx        # 首页
+│   │   ├── sitemap.ts      # 动态站点地图生成
+│   │   └── robots.ts       # 动态robots.txt生成
 │   └── lib/                # 工具逻辑和配置
 │       ├── tools/          # 各工具实现
 │       ├── constants.ts    # 工具配置
@@ -77,6 +80,21 @@ lz-tools/
 1. 在 `src/lib/tools/` 下创建新工具目录
 2. 实现 `client.tsx` 文件
 3. 在 `src/lib/constants.ts` 中添加工具配置
+
+## SEO优化
+
+网站已实现以下SEO优化措施：
+
+1. 元数据优化 - 所有页面都有恰当的标题、描述和关键词
+2. 动态站点地图 - 使用Next.js的内置API自动生成站点地图，提供给搜索引擎索引网站结构
+3. 动态Robots.txt - 使用Next.js的内置API生成robots.txt文件，指导搜索引擎如何爬取网站
+4. JSON-LD结构化数据 - 为搜索引擎提供网站的结构化信息
+5. 响应式设计 - 确保在所有设备上的良好体验
+6. 语义化HTML - 使用合适的HTML标签结构化内容
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=yan5236/lz-tools&type=Date)](https://www.star-history.com/#yan5236/lz-tools&Date)
 
 ## 许可
 

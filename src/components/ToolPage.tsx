@@ -27,11 +27,24 @@ export default function ToolPage({ toolId }: ToolPageProps) {
   const ToolComponent = dynamic(
     () => import(`@/lib/tools/${tool.slug}/client`).catch(err => {
       console.error(`Failed to load tool component: ${err}`);
-      setError('无法加载工具组件，请稍后再试。');
-      return Promise.resolve(() => null);
+      setError(`无法加载工具组件 ${tool.title}，错误信息: ${err.message}`);
+      return Promise.resolve(() => (
+        <Box sx={{ textAlign: 'center', py: 4 }}>
+          <Icon color="error" sx={{ fontSize: 48, mb: 2 }}>error_outline</Icon>
+          <Typography variant="h6" color="error" gutterBottom>加载失败</Typography>
+          <Typography color="text.secondary">
+            很抱歉，无法加载此工具组件，请稍后再试。
+          </Typography>
+        </Box>
+      ));
     }),
     {
-      loading: () => <Box sx={{ display: 'flex', justifyContent: 'center', my: 8 }}><CircularProgress /></Box>,
+      loading: () => (
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column', my: 8 }}>
+          <CircularProgress size={60} thickness={4} />
+          <Typography variant="body1" sx={{ mt: 2 }}>加载工具组件中...</Typography>
+        </Box>
+      ),
       ssr: false,
     }
   );
