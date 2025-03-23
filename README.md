@@ -2,6 +2,9 @@
 
 LZ小工具是一个基于Next.js 14和Material Design 3设计的现代化在线工具集合，为开发者、设计师和普通用户提供各种实用工具。
 
+## 演示DEMO
+- [点此进入](https://lztools.nanhaiblog.top/)
+
 ## 特点
 
 - 使用Next.js 14 App Router构建
