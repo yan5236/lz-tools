@@ -108,6 +108,7 @@ export default function Footer() {
                 <GitHubIcon sx={{ mr: 1, color: 'primary.main' }} />
                 <Link
                   href="https://github.com/yan5236/lz-tools"
+                  href="https://github.com/yan5236/lz-tools"
                   sx={{ 
                     color: 'text.secondary',
                     '&:hover': { color: 'primary.main' },

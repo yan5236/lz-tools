@@ -14,6 +14,7 @@ const roboto = Roboto({
 
 export const metadata: Metadata = {
   title: "LZ小工具 - 在线免费实用工具集合",
+  title: "LZ小工具 - 在线免费实用工具集合",
   description: "LZ小工具是一个免费的在线工具集合，包含JSON格式化、Base64编解码、URL编解码、时间戳转换等多种实用工具",
   keywords: "在线工具,免费工具,JSON格式化,Base64编解码,URL编解码,时间戳转换,哈希生成,颜色转换,图片压缩,Markdown编辑器",
   authors: [{ name: "LZ小工具团队" }],
