@@ -35,6 +35,8 @@ export default function UrlEncoder() {
       return;
     }
 
+    setError(null);
+    
     try {
       if (mode === 'encode') {
         // URL编码
@@ -45,60 +47,48 @@ export default function UrlEncoder() {
           // 组件编码 - encodeURIComponent
           setOutputText(encodeURIComponent(inputText));
         }
-        setError(null);
       } else {
         // URL解码
-        try {
-          if (encodeMode === 'normal') {
-            // 普通解码 - decodeURI
-            setOutputText(decodeURI(inputText));
-          } else {
-            // 组件解码 - decodeURIComponent
-            setOutputText(decodeURIComponent(inputText));
-          }
-          setError(null);
-        } catch (e) {
-          setError('解码失败，请确保输入的是有效的URL编码字符串');
-          setOutputText('');
+        if (encodeMode === 'normal') {
+          // 普通解码 - decodeURI
+          setOutputText(decodeURI(inputText));
+        } else {
+          // 组件解码 - decodeURIComponent
+          setOutputText(decodeURIComponent(inputText));
         }
       }
-    } catch (e) {
-      if (e instanceof Error) {
-        setError(`处理过程出现错误: ${e.message}`);
+    } catch (error) {
+      if (error instanceof Error) {
+        setError(`处理失败: ${error.message}`);
       } else {
-        setError('未知错误，请检查输入内容');
+        setError('处理过程中发生未知错误');
       }
-      setOutputText('');
     }
   };
 
-  // 处理复制到剪贴板
+  // 处理文本变化
+  const handleTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputText(event.target.value);
+  };
+
+  // 复制结果
   const handleCopy = () => {
     if (outputText) {
       navigator.clipboard.writeText(outputText)
         .then(() => {
           setSnackbarOpen(true);
         })
-        .catch(err => {
-          console.error('复制失败:', err);
+        .catch(() => {
+          setError('复制到剪贴板失败');
         });
     }
   };
 
-  // 处理清空
+  // 清空输入
   const handleClear = () => {
     setInputText('');
     setOutputText('');
     setError(null);
-  };
-
-  // 处理文本变化 - 修复
-  const handleTextChange = (_e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    // 只更新输入文本，不进行自动编码
-    if (inputRef.current) {
-      const value = inputRef.current.value;
-      setInputText(value);
-    }
   };
 
   return (
@@ -146,7 +136,7 @@ export default function UrlEncoder() {
             multiline
             rows={6}
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleTextChange}
             inputRef={inputRef}
             fullWidth
             variant="outlined"

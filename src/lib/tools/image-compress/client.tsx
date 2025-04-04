@@ -51,6 +51,18 @@ const formatFileSize = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
+// 计算base64数据URL的字节大小
+const calculateBase64Size = (dataURL: string): number => {
+  // 从dataURL中获取纯base64字符串（移除前缀）
+  const base64 = dataURL.split(',')[1];
+  if (!base64) return 0;
+  
+  // 计算base64字符串解码后的字节大小
+  // 每4个base64字符表示3个字节的数据
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return Math.floor((base64.length * 3) / 4) - padding;
+};
+
 export default function ImageCompress() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -388,56 +400,74 @@ export default function ImageCompress() {
         // 将canvas转换为压缩后的数据URL
         const compressedDataUrl = canvas.toDataURL(format, actualQuality);
         
-        // 计算压缩后的大小 - 使用blob方式
-        const byteString = atob(compressedDataUrl.split(',')[1]);
-        const mimeType = compressedDataUrl.split(',')[0].split(':')[1].split(';')[0];
-        const ab = new ArrayBuffer(byteString.length);
-        const ia = new Uint8Array(ab);
-        for (let i = 0; i < byteString.length; i++) {
-          ia[i] = byteString.charCodeAt(i);
-        }
-        const blob = new Blob([ab], {type: mimeType});
-        const compSize = blob.size;
+        // 使用calculateBase64Size函数计算压缩后的大小
+        const compSize = calculateBase64Size(compressedDataUrl);
+        console.log('压缩完成，原始大小:', formatFileSize(originalSize), '压缩后:', formatFileSize(compSize));
         
-        console.log(`文件[${fileIndex}] ${file.name} 压缩完成，原始大小:`, formatFileSize(file.size), '压缩后:', formatFileSize(compSize));
-        
-        // 保存处理结果
-        const compressionRatio = compSize < file.size ? 
-          Math.round((1 - compSize / file.size) * 100) : 
-          Math.round((compSize / file.size - 1) * 100) * -1;
-          
-        const processedFile = {
-          name: file.name,
-          originalSize: file.size,
-          compressedSize: compSize,
-          compressionRatio: compressionRatio,
-          fileIndex: fileIndex,
-          compressedUrl: compressedDataUrl
-        };
-        
-        // 更新UI状态
-        if (fileIndex === currentFileIndex) {
+        // 比较压缩前后的大小，如果压缩后更大，则保留原始图片
+        if (compSize >= originalSize && !needResize && format === file.type) {
+          // 压缩后反而变大，使用原始图片
+          setCompressedUrl(imageUrl);
+          setCompressedSize(originalSize);
+          setCompressionRatio(0);
+          setSnackbarSeverity('info');
+          setSnackbarMessage('图片已经是最优化的，无需进一步压缩');
+        } else if (compSize > originalSize) {
+          // 如果仍然变大，但格式或尺寸发生了变化，告知用户
           setCompressedUrl(compressedDataUrl);
           setCompressedSize(compSize);
-          setCompressionRatio(compressionRatio);
-          setViewMode('compressed');
+          setCompressionRatio(Math.round((compSize / originalSize - 1) * 100) * -1);
+          setSnackbarSeverity('warning');
+          setSnackbarMessage('调整后图片大小增加，请考虑使用不同的设置');
+        } else {
+          // 正常情况，压缩成功且变小了
+          setCompressedUrl(compressedDataUrl);
+          setCompressedSize(compSize);
+          setCompressionRatio(Math.round((1 - compSize / originalSize) * 100));
+          setSnackbarSeverity('success');
+          setSnackbarMessage('图片压缩成功!');
         }
         
-        // 直接更新全局处理文件数组 - 使用函数形式确保获取最新状态
-        setProcessedFiles(prev => {
-          console.log(`添加/更新处理文件[${fileIndex}], 当前列表长度:`, prev.length);
-          const existingIndex = prev.findIndex(f => f.fileIndex === fileIndex);
-          if (existingIndex >= 0) {
-            const updated = [...prev];
-            updated[existingIndex] = processedFile;
-            return updated;
-          } else {
-            return [...prev, processedFile];
-          }
-        });
+        // 切换到压缩图像预览
+        setViewMode('compressed');
         
-        // 继续处理下一个文件
-        processNextFile(fileIndex);
+        // 如果是批量模式，保存处理结果并处理下一个
+        if (batchMode && currentFileIndex >= 0) {
+          const processedFile = {
+            name: file.name,
+            originalSize: originalSize,
+            compressedSize: compSize,
+            compressionRatio: compSize < originalSize ? 
+              Math.round((1 - compSize / originalSize) * 100) : 
+              Math.round((compSize / originalSize - 1) * 100) * -1,
+            fileIndex: currentFileIndex,
+            compressedUrl: compressedDataUrl
+          };
+          
+          // 更新或添加处理结果
+          setProcessedFiles(prev => {
+            console.log(`添加/更新处理文件[${fileIndex}], 当前列表长度:`, prev.length);
+            const existingIndex = prev.findIndex(f => f.fileIndex === fileIndex);
+            if (existingIndex >= 0) {
+              const updated = [...prev];
+              updated[existingIndex] = processedFile;
+              return updated;
+            } else {
+              return [...prev, processedFile];
+            }
+          });
+          
+          // 如果是自动批处理模式，继续处理下一个文件
+          if (batchProcessing) {
+            moveToNextFile();
+          } else {
+            setLoading(false);
+            setSnackbarOpen(true);
+          }
+        } else {
+          setLoading(false);
+          setSnackbarOpen(true);
+        }
       } catch (error) {
         console.error(`文件[${fileIndex}] ${file.name} 处理过程中出错:`, error);
         processNextFile(fileIndex);
@@ -474,21 +504,21 @@ export default function ImageCompress() {
     }
   };
 
-  // 处理压缩
+  // 处理单个图片压缩
   const handleCompress = () => {
     if (!selectedFile || !previewUrl) {
-      console.error('没有选择文件或预览不可用');
+      setSnackbarSeverity('error');
+      setSnackbarMessage('请先选择一个图片文件');
+      setSnackbarOpen(true);
       return;
     }
     
     setLoading(true);
-    console.log('开始压缩单个图片:', selectedFile.name);
     
-    // 创建图像对象
+    // 创建图片对象
     const img = new Image();
     
     img.onload = () => {
-      console.log('图片加载成功，尺寸:', img.width, 'x', img.height);
       // 检查是否需要调整大小
       let width = img.width;
       let height = img.height;
@@ -511,17 +541,23 @@ export default function ImageCompress() {
       if (!canvas) {
         console.error('Canvas元素不存在');
         setLoading(false);
+        setSnackbarSeverity('error');
+        setSnackbarMessage('图片压缩失败，无法创建画布');
+        setSnackbarOpen(true);
         return;
       }
       
       canvas.width = width;
       canvas.height = height;
       
-      // 绘制图像到canvas
+      // 获取2D绘图上下文
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         console.error('无法获取Canvas上下文');
         setLoading(false);
+        setSnackbarSeverity('error');
+        setSnackbarMessage('图片压缩失败，浏览器不支持Canvas');
+        setSnackbarOpen(true);
         return;
       }
       
@@ -534,9 +570,7 @@ export default function ImageCompress() {
       }
       
       ctx.drawImage(img, 0, 0, width, height);
-      console.log('图片已绘制到Canvas');
       
-      // 确定实际使用的压缩质量
       // PNG格式使用lossless压缩，所以quality参数不影响PNG
       const actualQuality = format === 'image/png' ? 1.0 : quality / 100;
       
@@ -545,90 +579,73 @@ export default function ImageCompress() {
         const compressedDataUrl = canvas.toDataURL(format, actualQuality);
         console.log('Canvas已转换为数据URL');
         
-        // 计算压缩后的大小
-        fetch(compressedDataUrl)
-          .then(res => res.blob())
-          .then(blob => {
-            console.log('压缩完成，原始大小:', formatFileSize(originalSize), '压缩后:', formatFileSize(blob.size));
-            const compSize = blob.size;
-            
-            // 比较压缩前后的大小，如果压缩后更大，则保留原始图片
-            if (compSize >= originalSize && !needResize && format === selectedFile.type) {
-              // 压缩后反而变大，使用原始图片
-              setCompressedUrl(previewUrl);
-              setCompressedSize(originalSize);
-              setCompressionRatio(0);
-              setSnackbarSeverity('info');
-              setSnackbarMessage('图片已经是最优化的，无需进一步压缩');
-            } else if (compSize > originalSize) {
-              // 如果仍然变大，但格式或尺寸发生了变化，告知用户
-              setCompressedUrl(compressedDataUrl);
-              setCompressedSize(compSize);
-              setCompressionRatio(Math.round((compSize / originalSize - 1) * 100) * -1);
-              setSnackbarSeverity('warning');
-              setSnackbarMessage('调整后图片大小增加，请考虑使用不同的设置');
+        // 使用calculateBase64Size函数计算压缩后的大小
+        const compSize = calculateBase64Size(compressedDataUrl);
+        console.log('压缩完成，原始大小:', formatFileSize(originalSize), '压缩后:', formatFileSize(compSize));
+        
+        // 比较压缩前后的大小，如果压缩后更大，则保留原始图片
+        if (compSize >= originalSize && !needResize && format === selectedFile.type) {
+          // 压缩后反而变大，使用原始图片
+          setCompressedUrl(previewUrl);
+          setCompressedSize(originalSize);
+          setCompressionRatio(0);
+          setSnackbarSeverity('info');
+          setSnackbarMessage('图片已经是最优化的，无需进一步压缩');
+        } else if (compSize > originalSize) {
+          // 如果仍然变大，但格式或尺寸发生了变化，告知用户
+          setCompressedUrl(compressedDataUrl);
+          setCompressedSize(compSize);
+          setCompressionRatio(Math.round((compSize / originalSize - 1) * 100) * -1);
+          setSnackbarSeverity('warning');
+          setSnackbarMessage('调整后图片大小增加，请考虑使用不同的设置');
+        } else {
+          // 正常情况，压缩成功且变小了
+          setCompressedUrl(compressedDataUrl);
+          setCompressedSize(compSize);
+          setCompressionRatio(Math.round((1 - compSize / originalSize) * 100));
+          setSnackbarSeverity('success');
+          setSnackbarMessage('图片压缩成功!');
+        }
+        
+        // 切换到压缩图像预览
+        setViewMode('compressed');
+        
+        // 如果是批量模式，保存处理结果并处理下一个
+        if (batchMode && currentFileIndex >= 0) {
+          const processedFile = {
+            name: selectedFile.name,
+            originalSize: originalSize,
+            compressedSize: compSize,
+            compressionRatio: compSize < originalSize ? 
+              Math.round((1 - compSize / originalSize) * 100) : 
+              Math.round((compSize / originalSize - 1) * 100) * -1,
+            fileIndex: currentFileIndex,
+            compressedUrl: compressedDataUrl
+          };
+          
+          // 更新或添加处理结果
+          setProcessedFiles(prev => {
+            const existingIndex = prev.findIndex(f => f.fileIndex === currentFileIndex);
+            if (existingIndex >= 0) {
+              const updated = [...prev];
+              updated[existingIndex] = processedFile;
+              return updated;
             } else {
-              // 正常情况，压缩成功且变小了
-              setCompressedUrl(compressedDataUrl);
-              setCompressedSize(compSize);
-              setCompressionRatio(Math.round((1 - compSize / originalSize) * 100));
-              setSnackbarSeverity('success');
-              setSnackbarMessage('图片压缩成功!');
-            }
-            
-            // 切换到压缩图像预览
-            setViewMode('compressed');
-            
-            // 如果是批量模式，保存处理结果并处理下一个
-            if (batchMode && currentFileIndex >= 0) {
-              const processedFile = {
-                name: selectedFile.name,
-                originalSize: originalSize,
-                compressedSize: compSize,
-                compressionRatio: compSize < originalSize ? 
-                  Math.round((1 - compSize / originalSize) * 100) : 
-                  Math.round((compSize / originalSize - 1) * 100) * -1,
-                fileIndex: currentFileIndex,
-                compressedUrl: compressedDataUrl
-              };
-              
-              // 更新或添加处理结果
-              setProcessedFiles(prev => {
-                const existingIndex = prev.findIndex(f => f.fileIndex === currentFileIndex);
-                if (existingIndex >= 0) {
-                  const updated = [...prev];
-                  updated[existingIndex] = processedFile;
-                  return updated;
-                } else {
-                  return [...prev, processedFile];
-                }
-              });
-              
-              // 如果是自动批处理模式，继续处理下一个文件
-              if (batchProcessing) {
-                moveToNextFile();
-              } else {
-                setLoading(false);
-                setSnackbarOpen(true);
-              }
-            } else {
-              setLoading(false);
-              setSnackbarOpen(true);
-            }
-          })
-          .catch(err => {
-            console.error('压缩图片时出错:', err);
-            setLoading(false);
-            
-            setSnackbarSeverity('error');
-            setSnackbarMessage('压缩图片时发生错误');
-            setSnackbarOpen(true);
-            
-            // 如果在批处理模式下，跳过这个文件继续处理下一个
-            if (batchProcessing) {
-              moveToNextFile();
+              return [...prev, processedFile];
             }
           });
+          
+          // 如果是自动批处理模式，继续处理下一个文件
+          if (batchProcessing) {
+            moveToNextFile();
+          } else {
+            setLoading(false);
+            setSnackbarOpen(true);
+          }
+        } else {
+          setLoading(false);
+          setSnackbarOpen(true);
+        }
       } catch (error) {
         console.error('Canvas转换为数据URL时出错:', error);
         setLoading(false);
@@ -641,7 +658,7 @@ export default function ImageCompress() {
         }
       }
     };
-    
+
     img.onerror = (error) => {
       console.error('图片加载失败:', error);
       setLoading(false);
@@ -654,23 +671,8 @@ export default function ImageCompress() {
         moveToNextFile();
       }
     };
-    
-    // 设置图片加载超时处理
-    const imgLoadTimeout = setTimeout(() => {
-      if (batchProcessing && img.complete === false) {
-        console.log('图片加载超时，跳到下一个文件');
-        img.src = ''; // 中止当前加载
-        moveToNextFile();
-      }
-    }, 8000);
-    
-    console.log('设置图片源:', previewUrl ? '(有效的预览URL)' : '(无效的预览URL)');
+
     img.src = previewUrl;
-    
-    // 如果图片已经加载完成或出错，清除超时
-    if (img.complete) {
-      clearTimeout(imgLoadTimeout);
-    }
   };
 
   // 切换预览模式
@@ -1132,7 +1134,6 @@ export default function ImageCompress() {
                   }}
                 >
                   {compressedUrl && viewMode === 'compressed' ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={compressedUrl}
                       alt="压缩后预览"
@@ -1143,7 +1144,6 @@ export default function ImageCompress() {
                       }}
                     />
                   ) : previewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={previewUrl}
                       alt="原始图片预览"

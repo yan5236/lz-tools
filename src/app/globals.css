@@ -59,3 +59,54 @@ footer {
   border-bottom: 1px dashed #e0e0e0;
   position: relative;
 }
+
+/* Markdown编辑器样式修复 */
+.w-md-editor {
+  --md-editor-font-family: inherit !important;
+  --md-editor-font-size: 16px !important;
+  --color-canvas-default: #ffffff !important;
+  --color-fg-default: #171717 !important;
+  --color-border-default: #d0d7de !important;
+  --color-neutral-muted: #f6f8fa !important;
+  color-scheme: light !important;
+}
+
+/* Markdown预览样式 */
+.wmde-markdown {
+  background-color: #fff !important;
+  font-family: inherit !important;
+}
+
+.wmde-markdown h1,
+.wmde-markdown h2,
+.wmde-markdown h3,
+.wmde-markdown h4,
+.wmde-markdown h5,
+.wmde-markdown h6 {
+  margin-top: 24px !important;
+  margin-bottom: 16px !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+}
+
+.wmde-markdown code {
+  font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace !important;
+  padding: 0.2em 0.4em !important;
+  margin: 0 !important;
+  background-color: rgba(175, 184, 193, 0.2) !important;
+  border-radius: 6px !important;
+}
+
+.wmde-markdown pre code {
+  background-color: transparent !important;
+  padding: 0 !important;
+}
+
+/* 修复在SSR/SSG环境中的闪烁问题 */
+.md-editor-hidden-until-hydration {
+  visibility: hidden;
+}
+
+.hydrated {
+  visibility: visible;
+}

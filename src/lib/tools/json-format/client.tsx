@@ -88,13 +88,11 @@ export default function JsonFormatter() {
   // 修复引号转义问题
   const InfoBlock = () => (
     <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-      <strong>提示：</strong> 
+      {`说明: 此工具可以格式化JSON字符串。如果您的JSON包含引号，请确保它们已正确转义。`}
       <br />
-      将JSON字符串粘贴到左侧文本框中，点击&quot;格式化&quot;按钮将其格式化。
+      {`例如: { "message": "Hello \"World\"" }`}
       <br />
-      您也可以点击&quot;压缩&quot;按钮将格式化的JSON压缩为单行。
-      <br />
-      支持对象、数组和基本数据类型的格式化。
+      {`或者将双引号替换为HTML实体: { "message": "Hello &quot;World&quot;" }`}
     </Typography>
   );
 

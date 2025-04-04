@@ -7,20 +7,26 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import SwapVertIcon from '@mui/icons-material/SwapVert';
 
 export default function TimestampConverter() {
-  const [timestamp, setTimestamp] = useState<string>('');
-  const [dateTime, setDateTime] = useState<string>('');
-  const [timeFormat, setTimeFormat] = useState<string>('YYYY-MM-DD HH:mm:ss');
-  const [currentTimestamp, setCurrentTimestamp] = useState<number>(Math.floor(Date.now() / 1000));
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTimestamp, setCurrentTimestamp] = useState(Math.floor(currentTime.getTime() / 1000));
+  const [inputTimestamp, setInputTimestamp] = useState('');
+  const [inputDateTime, setInputDateTime] = useState('');
+  const [convertedDateTime, setConvertedDateTime] = useState('');
+  const [convertedTimestamp, setConvertedTimestamp] = useState('');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info' | 'warning'>('success');
+  const [timeFormat, setTimeFormat] = useState('ISO');
   const [error, setError] = useState<string | null>(null);
 
-  // 自动更新当前时间戳
+  // 更新当前时间和时间戳
   useEffect(() => {
     const timer = setInterval(() => {
-      setCurrentTimestamp(Math.floor(Date.now() / 1000));
+      const now = new Date();
+      setCurrentTime(now);
+      setCurrentTimestamp(Math.floor(now.getTime() / 1000));
     }, 1000);
-
+    
     return () => clearInterval(timer);
   }, []);
 
@@ -34,62 +40,51 @@ export default function TimestampConverter() {
     const date = new Date(ts * 1000);
     
     switch (timeFormat) {
-      case 'YYYY-MM-DD HH:mm:ss':
+      case 'ISO':
+        return date.toISOString();
+      case 'Local':
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-      case 'YYYY/MM/DD HH:mm:ss':
-        return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-      case 'MM/DD/YYYY HH:mm:ss':
-        return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-      case 'DD/MM/YYYY HH:mm:ss':
-        return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+      case 'UTC':
+        return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())} UTC`;
       default:
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        return date.toISOString();
     }
   };
 
   // 将日期时间字符串转换为时间戳
   const dateTimeToTimestamp = (dt: string) => {
     let date: Date | undefined;
-    
+
     // 尝试解析不同格式的日期字符串
     try {
-      if (dt.includes('-')) {
-        // YYYY-MM-DD HH:mm:ss
-        const [datePart, timePart] = dt.split(' ');
-        const [year, month, day] = datePart.split('-').map(Number);
-        const [hour, minute, second] = timePart ? timePart.split(':').map(Number) : [0, 0, 0];
-        date = new Date(year, month - 1, day, hour, minute, second);
-      } else if (dt.includes('/')) {
-        const [datePart, timePart] = dt.split(' ');
-        
-        if (datePart.match(/^\d{4}\/\d{1,2}\/\d{1,2}$/)) {
-          // YYYY/MM/DD HH:mm:ss
-          const [year, month, day] = datePart.split('/').map(Number);
-          const [hour, minute, second] = timePart ? timePart.split(':').map(Number) : [0, 0, 0];
-          date = new Date(year, month - 1, day, hour, minute, second);
-        } else if (datePart.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
-          const parts = datePart.split('/').map(Number);
-          const [hour, minute, second] = timePart ? timePart.split(':').map(Number) : [0, 0, 0];
-          
-          if (timeFormat === 'MM/DD/YYYY HH:mm:ss') {
-            // MM/DD/YYYY HH:mm:ss
-            const [month, day, year] = parts;
-            date = new Date(year, month - 1, day, hour, minute, second);
-          } else {
-            // DD/MM/YYYY HH:mm:ss
-            const [day, month, year] = parts;
-            date = new Date(year, month - 1, day, hour, minute, second);
-          }
-        }
-      } else {
-        // 尝试作为ISO日期字符串解析
+      // 尝试ISO格式
+      if (dt.includes('T') && dt.includes('Z')) {
         date = new Date(dt);
       }
-      
+      // 尝试UTC格式
+      else if (dt.includes('UTC')) {
+        const withoutUTC = dt.replace(' UTC', '');
+        const [datePart, timePart] = withoutUTC.split(' ');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hour, minute, second] = timePart.split(':').map(Number);
+        date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+      }
+      // 尝试本地格式
+      else if (dt.includes('-') && dt.includes(':')) {
+        const [datePart, timePart] = dt.split(' ');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hour, minute, second] = timePart.split(':').map(Number);
+        date = new Date(year, month - 1, day, hour, minute, second);
+      }
+      // 如果上述都失败，尝试直接解析
+      else {
+        date = new Date(dt);
+      }
+
       if (!date || isNaN(date.getTime())) {
         throw new Error('无效的日期时间格式');
       }
-      
+
       return Math.floor(date.getTime() / 1000);
     } catch (e) {
       throw new Error('无法解析日期时间，请确保格式正确');
@@ -103,19 +98,22 @@ export default function TimestampConverter() {
 
   // 处理时间戳转日期时间
   const handleTimestampToDateTime = () => {
-    if (!timestamp) {
+    if (!inputTimestamp) {
       setError('请输入时间戳');
       return;
     }
     
     try {
-      const ts = parseInt(timestamp, 10);
+      const ts = parseInt(inputTimestamp, 10);
       if (isNaN(ts)) {
         setError('请输入有效的数字时间戳');
         return;
       }
       
-      setDateTime(timestampToDateTime(ts));
+      const dateTimeValue = timestampToDateTime(ts);
+      setInputDateTime(dateTimeValue);
+      setConvertedDateTime(dateTimeValue);
+      setConvertedTimestamp(ts.toString());
       setError(null);
     } catch (e) {
       if (e instanceof Error) {
@@ -128,14 +126,15 @@ export default function TimestampConverter() {
 
   // 处理日期时间转时间戳
   const handleDateTimeToTimestamp = () => {
-    if (!dateTime) {
+    if (!inputDateTime) {
       setError('请输入日期时间');
       return;
     }
     
     try {
-      const ts = dateTimeToTimestamp(dateTime);
-      setTimestamp(ts.toString());
+      const ts = dateTimeToTimestamp(inputDateTime);
+      setInputTimestamp(ts.toString());
+      setConvertedTimestamp(ts.toString());
       setError(null);
     } catch (e) {
       if (e instanceof Error) {
@@ -148,8 +147,11 @@ export default function TimestampConverter() {
 
   // 使用当前时间戳
   const useCurrentTimestamp = () => {
-    setTimestamp(currentTimestamp.toString());
-    setDateTime(timestampToDateTime(currentTimestamp));
+    const now = new Date();
+    setCurrentTime(now);
+    setCurrentTimestamp(Math.floor(now.getTime() / 1000));
+    setInputTimestamp(Math.floor(now.getTime() / 1000).toString());
+    setInputDateTime(timestampToDateTime(Math.floor(now.getTime() / 1000)));
     setError(null);
   };
 
@@ -158,11 +160,11 @@ export default function TimestampConverter() {
     setTimeFormat(event.target.value);
     
     // 如果已有时间戳，更新日期时间显示
-    if (timestamp) {
+    if (inputTimestamp) {
       try {
-        const ts = parseInt(timestamp, 10);
+        const ts = parseInt(inputTimestamp, 10);
         if (!isNaN(ts)) {
-          setDateTime(timestampToDateTime(ts));
+          setConvertedDateTime(timestampToDateTime(ts));
         }
       } catch (e) {
         // 忽略转换错误
@@ -221,14 +223,14 @@ export default function TimestampConverter() {
             <Typography variant="h6" gutterBottom>时间戳 → 日期时间</Typography>
             <TextField
               label="Unix时间戳（秒）"
-              value={timestamp}
-              onChange={(e) => setTimestamp(e.target.value)}
+              value={inputTimestamp}
+              onChange={(e) => setInputTimestamp(e.target.value)}
               fullWidth
               margin="normal"
               variant="outlined"
               placeholder="例如：1609459200"
-              error={!!error && !dateTime}
-              helperText={!!error && !dateTime ? error : ''}
+              error={!!error && !inputDateTime}
+              helperText={!!error && !inputDateTime ? error : ''}
             />
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
               <Button 
@@ -246,10 +248,9 @@ export default function TimestampConverter() {
                   label="日期时间格式"
                   onChange={handleFormatChange}
                 >
-                  <MenuItem value="YYYY-MM-DD HH:mm:ss">YYYY-MM-DD HH:mm:ss</MenuItem>
-                  <MenuItem value="YYYY/MM/DD HH:mm:ss">YYYY/MM/DD HH:mm:ss</MenuItem>
-                  <MenuItem value="MM/DD/YYYY HH:mm:ss">MM/DD/YYYY HH:mm:ss</MenuItem>
-                  <MenuItem value="DD/MM/YYYY HH:mm:ss">DD/MM/YYYY HH:mm:ss</MenuItem>
+                  <MenuItem value="ISO">ISO</MenuItem>
+                  <MenuItem value="Local">Local</MenuItem>
+                  <MenuItem value="UTC">UTC</MenuItem>
                 </Select>
               </FormControl>
             </Box>
@@ -261,14 +262,14 @@ export default function TimestampConverter() {
             <Typography variant="h6" gutterBottom>日期时间 → 时间戳</Typography>
             <TextField
               label="日期时间"
-              value={dateTime}
-              onChange={(e) => setDateTime(e.target.value)}
+              value={inputDateTime}
+              onChange={(e) => setInputDateTime(e.target.value)}
               fullWidth
               margin="normal"
               variant="outlined"
               placeholder={`例如：${timestampToDateTime(currentTimestamp)}`}
-              error={!!error && !!dateTime}
-              helperText={!!error && !!dateTime ? error : ''}
+              error={!!error && !!inputDateTime}
+              helperText={!!error && !!inputDateTime ? error : ''}
             />
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
               <Button 
@@ -282,9 +283,9 @@ export default function TimestampConverter() {
                 variant="outlined"
                 startIcon={<SwapVertIcon />}
                 onClick={() => {
-                  if (timestamp && dateTime) {
+                  if (inputTimestamp && inputDateTime) {
                     handleDateTimeToTimestamp();
-                  } else if (timestamp) {
+                  } else if (inputTimestamp) {
                     handleTimestampToDateTime();
                   }
                 }}
@@ -305,15 +306,15 @@ export default function TimestampConverter() {
                     时间戳
                   </Typography>
                   <Typography variant="body1" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {timestamp || '-'}
+                    {inputTimestamp || '-'}
                   </Typography>
-                  {timestamp && (
+                  {inputTimestamp && (
                     <Button 
                       size="small"
                       variant="contained"
                       color="primary"
                       startIcon={<ContentCopyIcon />}
-                      onClick={() => copyResult(timestamp, '时间戳已复制到剪贴板')}
+                      onClick={() => copyResult(inputTimestamp, '时间戳已复制到剪贴板')}
                       sx={{ position: 'absolute', top: 8, right: 8 }}
                     >
                       复制
@@ -327,15 +328,15 @@ export default function TimestampConverter() {
                     日期时间
                   </Typography>
                   <Typography variant="body1" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {dateTime || '-'}
+                    {inputDateTime || '-'}
                   </Typography>
-                  {dateTime && (
+                  {inputDateTime && (
                     <Button 
                       size="small"
                       variant="contained"
                       color="primary"
                       startIcon={<ContentCopyIcon />}
-                      onClick={() => copyResult(dateTime, '日期时间已复制到剪贴板')}
+                      onClick={() => copyResult(inputDateTime, '日期时间已复制到剪贴板')}
                       sx={{ position: 'absolute', top: 8, right: 8 }}
                     >
                       复制
@@ -354,7 +355,7 @@ export default function TimestampConverter() {
         onClose={() => setSnackbarOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert onClose={() => setSnackbarOpen(false)} severity="success" sx={{ width: '100%' }}>
+        <Alert onClose={() => setSnackbarOpen(false)} severity={snackbarSeverity} sx={{ width: '100%' }}>
           {snackbarMessage}
         </Alert>
       </Snackbar>
