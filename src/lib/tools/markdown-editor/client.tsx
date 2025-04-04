@@ -181,7 +181,7 @@ export default function MarkdownEditor() {
     }, 0);
   };
 
-  // 标题菜单处理
+  // 标题下拉菜单处理
   const handleHeadingClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     setHeadingAnchorEl(event.currentTarget);
   };
@@ -196,6 +196,7 @@ export default function MarkdownEditor() {
     handleHeadingMenuClose();
   };
 
+  // 文本格式化处理函数
   const handleBold = () => insertText('**', '**');
   const handleItalic = () => insertText('*', '*');
   const handleStrikethrough = () => insertText('~~', '~~');
