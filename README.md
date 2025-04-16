@@ -119,10 +119,6 @@ lz-tools/
 5. 响应式设计 - 确保在所有设备上的良好体验
 6. 语义化HTML - 使用合适的HTML标签结构化内容
 
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=yan5236/lz-tools&type=Date)](https://www.star-history.com/#yan5236/lz-tools&Date)
-
 ## 许可
 
 MIT
