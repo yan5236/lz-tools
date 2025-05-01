@@ -5,7 +5,8 @@ export const categoryIcons: Record<string, string> = {
   '加密工具': 'security',
   '设计工具': 'brush',
   '图像工具': 'image',
-  '文本工具': 'text_format'
+  '文本工具': 'text_format',
+  '网络工具': 'public'
 };
 
 // 工具列表
@@ -48,6 +49,14 @@ export const tools = [
     description: '在线编辑和预览Markdown文档，支持实时预览、导出文件和自动保存功能。',
     category: '文本工具',
     icon: 'edit_note',
+    featured: true
+  },
+  {
+    slug: 'ip-query',
+    title: 'IP地址查询',
+    description: '查询用户的IP地址、地理位置、经纬度和运营商等详细信息，支持中文展示。',
+    category: '网络工具',
+    icon: 'my_location',
     featured: true
   },
   {
