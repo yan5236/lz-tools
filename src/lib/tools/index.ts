@@ -90,6 +90,14 @@ export const tools = [
     category: '日期工具',
     icon: 'schedule',
     featured: false
+  },
+  {
+    slug: 'mermaid-editor',
+    title: 'Mermaid编辑器',
+    description: '在线编辑和预览Mermaid流程图，支持流程图、时序图、类图、状态图、甘特图等多种图表类型。',
+    category: '设计工具',
+    icon: 'account_tree',
+    featured: true
   }
 ];
 

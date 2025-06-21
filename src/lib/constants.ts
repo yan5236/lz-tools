@@ -50,6 +50,13 @@ export const tools: Tool[] = [
     description: '压缩图片以减小文件大小，支持调整质量和尺寸',
     icon: 'compress',
     category: '图像工具'
+  },
+  {
+    slug: 'mermaid-editor',
+    title: 'Mermaid编辑器',
+    description: '在线编辑和预览Mermaid流程图，支持多种图表类型',
+    icon: 'account_tree',
+    category: '设计工具'
   }
 ];
 
