@@ -6,7 +6,8 @@ export const categoryIcons: Record<string, string> = {
   '设计工具': 'brush',
   '图像工具': 'image',
   '文本工具': 'text_format',
-  '网络工具': 'public'
+  '网络工具': 'public',
+  '开发工具': 'developer_mode'
 };
 
 // 工具列表
@@ -97,6 +98,14 @@ export const tools = [
     description: '在线编辑和预览Mermaid流程图，支持流程图、时序图、类图、状态图、甘特图等多种图表类型。',
     category: '设计工具',
     icon: 'account_tree',
+    featured: true
+  },
+  {
+    slug: 'http-request',
+    title: '在线HTTP请求工具',
+    description: '在线测试API接口，支持GET、POST、PUT、DELETE等HTTP方法，可自定义请求头、请求体，查看响应结果。',
+    category: '开发工具',
+    icon: 'http',
     featured: true
   }
 ];
