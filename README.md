@@ -67,12 +67,11 @@ npm run start
 lz-tools/
 ├── src/
 │   ├── app/                # Next.js 14 App Router
+│   │   ├── api/            # API路由
+│   │   │   └── ip/         # IP查询代理API
 │   │   ├── components/     # 公共组件
 │   │   ├── tools/          # 工具页面路由
 │   │   ├── layout.tsx      # 全局布局
-│   │   ├── page.tsx        # 首页
-│   │   ├── sitemap.ts      # 动态站点地图生成
-│   │   └── robots.ts       # 动态robots.txt生成
 │   │   ├── page.tsx        # 首页
 │   │   ├── sitemap.ts      # 动态站点地图生成
 │   │   └── robots.ts       # 动态robots.txt生成

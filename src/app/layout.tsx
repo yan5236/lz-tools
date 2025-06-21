@@ -5,6 +5,7 @@ import ThemeProvider from "./components/ThemeProvider";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Box from "@mui/material/Box";
+import Script from "next/script";
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -31,6 +32,23 @@ export const metadata: Metadata = {
   }
 };
 
+// JSON-LD 结构化数据
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "LZ小工具",
+  "url": "https://lztools.nanhaiblog.top",
+  "description": "LZ小工具是一个免费的在线工具集合，包含JSON格式化、Base64编解码、URL编解码等多种实用工具",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "https://lztools.nanhaiblog.top/tools?q={search_term_string}"
+    },
+    "query-input": "required name=search_term_string"
+  }
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -52,25 +70,12 @@ export default function RootLayout({
           crossOrigin="anonymous"
           referrerPolicy="no-referrer"
         />
-        <script
+        {/* 使用Next.js的Script组件来避免水合错误 */}
+        <Script
+          id="json-ld"
           type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "WebSite",
-              "name": "LZ小工具",
-              "url": "https://lztools.nanhaiblog.top",
-              "description": "LZ小工具是一个免费的在线工具集合，包含JSON格式化、Base64编解码、URL编解码等多种实用工具",
-              "potentialAction": {
-                "@type": "SearchAction",
-                "target": {
-                  "@type": "EntryPoint",
-                  "urlTemplate": "https://lztools.nanhaiblog.top/tools?q={search_term_string}"
-                },
-                "query-input": "required name=search_term_string"
-              }
-            })
-          }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          strategy="afterInteractive"
         />
       </head>
       <body className={roboto.className}>

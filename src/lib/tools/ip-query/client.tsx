@@ -89,8 +89,12 @@ export default function IPQuery() {
     const fetchIPInfo = async () => {
       try {
         setLoading(true);
-        // 使用ipapi.co的API获取IP信息
-        const response = await fetch('https://ipapi.co/json/');
+        // 使用我们的代理 API 获取 IP 信息，避免 CORS 问题
+        const response = await fetch('/api/ip');
+        
+        // 检查是否使用了回退数据
+        const isUsingFallback = response.headers.get('X-IP-Source') === 'fallback';
+        
         if (!response.ok) {
           throw new Error('无法获取IP信息，请稍后再试');
         }
@@ -115,11 +119,33 @@ export default function IPQuery() {
         };
         
         setIpInfo(formattedData);
-        setError(null);
+        
+        // 如果使用的是回退数据，设置一个轻微警告
+        if (isUsingFallback) {
+          setError('无法连接到IP查询服务，显示的是模拟数据');
+        } else {
+          setError(null);
+        }
       } catch (err) {
         console.error('获取IP信息失败:', err);
         setError(err instanceof Error ? err.message : '未知错误');
-        setIpInfo(null);
+        
+        // 在出错时也创建一个默认的IP信息对象以展示UI
+        setIpInfo({
+          ip: '无法获取',
+          country: '未知',
+          region: '未知',
+          city: '未知',
+          district: '',
+          isp: '未知',
+          latitude: 0,
+          longitude: 0,
+          timezone: '未知',
+          country_code: '',
+          as: '',
+          asname: '',
+          organization: ''
+        });
       } finally {
         setLoading(false);
       }
@@ -142,7 +168,7 @@ export default function IPQuery() {
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          本工具可以查询您当前的IP地址及相关地理位置信息，数据仅供参考。为保护您的隐私，所有查询都直接在您的浏览器中进行。
+          本工具可以查询您当前的IP地址及相关地理位置信息，数据仅供参考。为保护您的隐私，所有查询通过我们的安全代理进行，不会直接暴露您的浏览器信息。
         </Typography>
       </Paper>
 
