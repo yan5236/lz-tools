@@ -188,18 +188,36 @@ function isPublicIP(ip: string): boolean {
 // 获取客户端真实IP地址
 function getClientIP(request: NextRequest): string {
   // 定义需要检查的头部，按优先级排序
+  // Cloudflare的cf-connecting-ip优先级最高，因为它包含用户真实IP
   const ipHeaders = [
-    'x-forwarded-for',      // 最常用的代理头部
+    'cf-connecting-ip',     // Cloudflare - 用户真实IP，优先级最高
     'x-real-ip',            // Nginx代理常用
     'x-client-ip',          // Apache等使用
-    'cf-connecting-ip',     // Cloudflare
-    'x-cluster-client-ip',  // 集群环境
     'x-original-forwarded-for', // 原始转发
+    'x-forwarded-for',      // 最常用的代理头部，但在Cloudflare环境下可能是边缘节点IP
+    'x-cluster-client-ip',  // 集群环境
     'forwarded-for',        // 标准转发头
     'forwarded',            // RFC 7239标准
   ];
   
   console.log('开始检测客户端IP，检查所有可能的头部...');
+  
+  // 检查是否为Cloudflare环境
+  const cfRay = request.headers.get('cf-ray');
+  const cfConnectingIP = request.headers.get('cf-connecting-ip');
+  const isCloudflareEnv = !!(cfRay || cfConnectingIP);
+  
+  console.log('Cloudflare环境检测:', {
+    cfRay: cfRay || 'none',
+    cfConnectingIP: cfConnectingIP || 'none',
+    isCloudflareEnv
+  });
+  
+  // 如果是Cloudflare环境且有cf-connecting-ip，直接使用
+  if (isCloudflareEnv && cfConnectingIP && isValidIP(cfConnectingIP)) {
+    console.log(`Cloudflare环境检测到用户真实IP: ${cfConnectingIP}`);
+    return cfConnectingIP;
+  }
   
   // 记录所有找到的IP地址
   const foundIPs: { source: string; ip: string; isPublic: boolean }[] = [];
