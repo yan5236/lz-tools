@@ -64,6 +64,13 @@ export const tools: Tool[] = [
     description: '在线测试API接口，支持GET、POST、PUT、DELETE等HTTP方法',
     icon: 'http',
     category: '开发工具'
+  },
+  {
+    slug: 'calculator',
+    title: '高级计算器',
+    description: '多功能计算器，支持标准、科学、程序员计算，单位转换和汇率换算',
+    icon: 'calculate',
+    category: '计算器'
   }
 ];
 
@@ -77,5 +84,6 @@ export const categoryIcons: Record<string, string> = {
   '加密工具': 'security',
   '设计工具': 'brush',
   '图像工具': 'image',
-  '开发工具': 'developer_mode'
+  '开发工具': 'developer_mode',
+  '计算器': 'calculate'
 }; 

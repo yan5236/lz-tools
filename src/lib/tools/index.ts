@@ -7,7 +7,8 @@ export const categoryIcons: Record<string, string> = {
   '图像工具': 'image',
   '文本工具': 'text_format',
   '网络工具': 'public',
-  '开发工具': 'developer_mode'
+  '开发工具': 'developer_mode',
+  '计算器': 'calculate'
 };
 
 // 工具列表
@@ -106,6 +107,14 @@ export const tools = [
     description: '在线测试API接口，支持GET、POST、PUT、DELETE等HTTP方法，可自定义请求头、请求体，查看响应结果。',
     category: '开发工具',
     icon: 'http',
+    featured: true
+  },
+  {
+    slug: 'calculator',
+    title: '高级计算器',
+    description: '多功能计算器，支持标准计算、科学计算、程序员计算、日期计算、单位转换和汇率换算。',
+    category: '计算器',
+    icon: 'calculate',
     featured: true
   }
 ];
