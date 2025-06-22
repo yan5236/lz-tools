@@ -22,7 +22,10 @@ import {
   Select,
   FormControl,
   InputLabel,
-  Slider
+  Slider,
+  useTheme,
+  useMediaQuery,
+  Fab
 } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -41,9 +44,14 @@ import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import CenterFocusStrongIcon from '@mui/icons-material/CenterFocusStrong';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
+import CloseIcon from '@mui/icons-material/Close';
 import mermaid from 'mermaid';
 
 export default function MermaidEditor() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const [mermaidCode, setMermaidCode] = useState<string>(`graph TD
     A[开始] --> B{是否满足条件?}
     B -->|是| C[执行操作A]
@@ -51,7 +59,8 @@ export default function MermaidEditor() {
     C --> E[结束]
     D --> E`);
   
-  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('split');
+  // 移动端默认为编辑模式，桌面端默认为分屏模式
+  const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>(isMobile ? 'edit' : 'split');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [autoSave, setAutoSave] = useState(true);
@@ -65,6 +74,10 @@ export default function MermaidEditor() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // 触摸操作相关状态
+  const [lastTouchDistance, setLastTouchDistance] = useState(0);
+  const [touchStartScale, setTouchStartScale] = useState(1);
   
   const textFieldRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -157,6 +170,13 @@ export default function MermaidEditor() {
     });
   }, []);
 
+  // 响应式调整viewMode
+  useEffect(() => {
+    if (isMobile && viewMode === 'split') {
+      setViewMode('edit');
+    }
+  }, [isMobile, viewMode]);
+
   // 从本地存储加载数据
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -243,8 +263,10 @@ export default function MermaidEditor() {
     }
   }, [mermaidCode, viewMode]);
 
-  // 键盘快捷键支持
+  // 键盘快捷键支持（仅桌面端）
   useEffect(() => {
+    if (isMobile) return;
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       // 只在预览模式下处理快捷键
       if (viewMode === 'edit') return;
@@ -279,10 +301,12 @@ export default function MermaidEditor() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [viewMode, isFullscreen]);
+  }, [viewMode, isFullscreen, isMobile]);
 
-  // 阻止全局滚轮事件在预览区域
+  // 阻止全局滚轮事件在预览区域（仅桌面端）
   useEffect(() => {
+    if (isMobile) return;
+    
     const preventGlobalWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
@@ -298,7 +322,7 @@ export default function MermaidEditor() {
         previewContainerRef.current.removeEventListener('wheel', preventGlobalWheel);
       }
     };
-  }, []);
+  }, [isMobile]);
 
   // 处理复制到剪贴板
   const handleCopy = () => {
@@ -402,7 +426,12 @@ export default function MermaidEditor() {
   // 视图模式切换
   const handleEditMode = () => setViewMode('edit');
   const handlePreviewMode = () => setViewMode('preview');
-  const handleSplitMode = () => setViewMode('split');
+  const handleSplitMode = () => {
+    // 移动端不支持分屏模式
+    if (!isMobile) {
+      setViewMode('split');
+    }
+  };
 
   // 缩放控制
   const handleZoomIn = () => {
@@ -428,8 +457,63 @@ export default function MermaidEditor() {
     setIsFullscreen(!isFullscreen);
   };
 
-  // 鼠标拖拽处理
+  // 计算两点间距离（用于触摸缩放）
+  const getTouchDistance = (touch1: React.Touch, touch2: React.Touch) => {
+    const dx = touch1.clientX - touch2.clientX;
+    const dy = touch1.clientY - touch2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // 触摸开始处理
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    
+    if (e.touches.length === 1) {
+      // 单指拖拽
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setDragStart({ x: touch.clientX - translateX, y: touch.clientY - translateY });
+    } else if (e.touches.length === 2) {
+      // 双指缩放
+      const distance = getTouchDistance(e.touches[0], e.touches[1]);
+      setLastTouchDistance(distance);
+      setTouchStartScale(scale);
+      setIsDragging(false);
+    }
+  };
+
+  // 触摸移动处理
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    
+    if (e.touches.length === 1 && isDragging) {
+      // 单指拖拽
+      const touch = e.touches[0];
+      setTranslateX(touch.clientX - dragStart.x);
+      setTranslateY(touch.clientY - dragStart.y);
+    } else if (e.touches.length === 2) {
+      // 双指缩放
+      const distance = getTouchDistance(e.touches[0], e.touches[1]);
+      if (lastTouchDistance > 0) {
+        const scaleRatio = distance / lastTouchDistance;
+        const newScale = Math.max(0.2, Math.min(3, touchStartScale * scaleRatio));
+        setScale(newScale);
+      }
+    }
+  };
+
+  // 触摸结束处理
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    setIsDragging(false);
+    if (e.touches.length < 2) {
+      setLastTouchDistance(0);
+    }
+  };
+
+  // 鼠标拖拽处理（桌面端）
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (isMobile) return;
+    
     if (e.button === 0) { // 左键
       setIsDragging(true);
       setDragStart({ x: e.clientX - translateX, y: e.clientY - translateY });
@@ -438,6 +522,8 @@ export default function MermaidEditor() {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (isMobile) return;
+    
     if (isDragging) {
       setTranslateX(e.clientX - dragStart.x);
       setTranslateY(e.clientY - dragStart.y);
@@ -445,11 +531,14 @@ export default function MermaidEditor() {
   };
 
   const handleMouseUp = () => {
+    if (isMobile) return;
     setIsDragging(false);
   };
 
-  // 滚轮缩放
+  // 滚轮缩放（桌面端）
   const handleWheel = (e: React.WheelEvent) => {
+    if (isMobile) return;
+    
     if (e.ctrlKey) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
@@ -481,8 +570,12 @@ export default function MermaidEditor() {
    - dateFormat: 日期格式
    - section: 分组
 
-预览操作提示：
-- 鼠标拖拽：平移图表
+${isMobile ? '移动端操作提示：' : '预览操作提示：'}
+${isMobile ? 
+  `- 单指拖拽：平移图表
+- 双指捏合：缩放图表
+- 使用缩放控制按钮调整大小` :
+  `- 鼠标拖拽：平移图表
 - Ctrl + 滚轮：缩放图表
 - 键盘快捷键：
   * Ctrl + '+' / Ctrl + '='：放大
@@ -490,7 +583,7 @@ export default function MermaidEditor() {
   * Ctrl + '0'：重置视图
   * Ctrl + 'F'：切换全屏
   * ESC：退出全屏
-- 使用缩放控制按钮调整大小
+- 使用缩放控制按钮调整大小`}
 
 更多语法请参考Mermaid官方文档。`;
     
@@ -500,7 +593,7 @@ export default function MermaidEditor() {
   return (
     <Box sx={{ width: '100%', height: '100%' }}>
       {/* 工具栏 */}
-      <Paper sx={{ p: 2, mb: 2 }}>
+      <Paper sx={{ p: isSmallScreen ? 1 : 2, mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
           {/* 视图模式切换 */}
           <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -520,24 +613,27 @@ export default function MermaidEditor() {
             >
               预览
             </Button>
-            <Button
-              size="small"
-              variant={viewMode === 'split' ? 'contained' : 'outlined'}
-              startIcon={<AccountTreeIcon />}
-              onClick={handleSplitMode}
-            >
-              分屏
-            </Button>
+            {/* 移动端隐藏分屏模式 */}
+            {!isMobile && (
+              <Button
+                size="small"
+                variant={viewMode === 'split' ? 'contained' : 'outlined'}
+                startIcon={<AccountTreeIcon />}
+                onClick={handleSplitMode}
+              >
+                分屏
+              </Button>
+            )}
           </Box>
 
           <Divider orientation="vertical" flexItem />
 
           {/* 模板选择 */}
-          <FormControl size="small" sx={{ minWidth: 120 }}>
-            <InputLabel>选择模板</InputLabel>
+          <FormControl size="small" sx={{ minWidth: isSmallScreen ? 100 : 120 }}>
+            <InputLabel>模板</InputLabel>
             <Select
               value=""
-              label="选择模板"
+              label="模板"
               onChange={(e) => handleLoadTemplate(e.target.value as keyof typeof templates)}
             >
               <MenuItem value="flowchart">
@@ -567,6 +663,9 @@ export default function MermaidEditor() {
             </Select>
           </FormControl>
 
+          {/* 在小屏幕上换行 */}
+          {isSmallScreen && <Box sx={{ width: '100%' }} />}
+
           <Divider orientation="vertical" flexItem />
 
           {/* 操作按钮 */}
@@ -582,11 +681,13 @@ export default function MermaidEditor() {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="下载代码">
-            <IconButton size="small" onClick={handleDownloadCode}>
-              <CloudDownloadIcon />
-            </IconButton>
-          </Tooltip>
+          {!isSmallScreen && (
+            <Tooltip title="下载代码">
+              <IconButton size="small" onClick={handleDownloadCode}>
+                <CloudDownloadIcon />
+              </IconButton>
+            </Tooltip>
+          )}
 
           <Tooltip title="清空">
             <IconButton size="small" onClick={handleClear}>
@@ -623,18 +724,20 @@ export default function MermaidEditor() {
                 </IconButton>
               </Tooltip>
 
-              <Box sx={{ width: 100, mx: 1 }}>
-                <Slider
-                  value={scale}
-                  onChange={handleScaleChange}
-                  min={0.2}
-                  max={3}
-                  step={0.1}
-                  size="small"
-                  valueLabelDisplay="auto"
-                  valueLabelFormat={(value) => `${Math.round(value * 100)}%`}
-                />
-              </Box>
+              {!isSmallScreen && (
+                <Box sx={{ width: 100, mx: 1 }}>
+                  <Slider
+                    value={scale}
+                    onChange={handleScaleChange}
+                    min={0.2}
+                    max={3}
+                    step={0.1}
+                    size="small"
+                    valueLabelDisplay="auto"
+                    valueLabelFormat={(value) => `${Math.round(value * 100)}%`}
+                  />
+                </Box>
+              )}
 
               <Tooltip title={isFullscreen ? "退出全屏" : "全屏预览"}>
                 <IconButton size="small" onClick={handleToggleFullscreen}>
@@ -647,17 +750,19 @@ export default function MermaidEditor() {
           )}
 
           {/* 自动保存开关 */}
-          <FormControlLabel
-            control={
-              <Switch
-                checked={autoSave}
-                onChange={(e) => setAutoSave(e.target.checked)}
-                size="small"
-              />
-            }
-            label="自动保存"
-            sx={{ ml: 1 }}
-          />
+          {!isSmallScreen && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={autoSave}
+                  onChange={(e) => setAutoSave(e.target.checked)}
+                  size="small"
+                />
+              }
+              label="自动保存"
+              sx={{ ml: 1 }}
+            />
+          )}
         </Box>
       </Paper>
 
@@ -687,7 +792,7 @@ export default function MermaidEditor() {
                     '& .MuiInputBase-input': {
                       height: '100% !important',
                       fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-                      fontSize: '14px',
+                      fontSize: isSmallScreen ? '12px' : '14px',
                       lineHeight: 1.5
                     }
                   }}
@@ -720,7 +825,7 @@ export default function MermaidEditor() {
                 预览
                 {isRendering && <Typography component="span" sx={{ ml: 1, color: 'primary.main' }}>渲染中...</Typography>}
                 <Typography component="span" sx={{ ml: 2, fontSize: '0.8em', color: 'text.secondary' }}>
-                  {Math.round(scale * 100)}% | 拖拽移动 | Ctrl+滚轮缩放
+                  {Math.round(scale * 100)}% | {isMobile ? '拖拽移动 | 双指缩放' : '拖拽移动 | Ctrl+滚轮缩放'}
                 </Typography>
               </Typography>
               <Box 
@@ -730,13 +835,17 @@ export default function MermaidEditor() {
                   overflow: 'hidden',
                   position: 'relative',
                   cursor: isDragging ? 'grabbing' : 'grab',
-                  userSelect: 'none'
+                  userSelect: 'none',
+                  touchAction: 'none' // 防止移动端默认触摸行为
                 }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={handleMouseUp}
                 onWheel={handleWheel}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
               >
                 <Box
                   ref={previewRef}
@@ -754,6 +863,23 @@ export default function MermaidEditor() {
                   }}
                 />
               </Box>
+              
+              {/* 全屏模式下的退出按钮 */}
+              {isFullscreen && (
+                <Fab
+                  color="primary"
+                  size="medium"
+                  onClick={handleToggleFullscreen}
+                  sx={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    zIndex: 1000
+                  }}
+                >
+                  <CloseIcon />
+                </Fab>
+              )}
             </Paper>
           </Grid>
         )}

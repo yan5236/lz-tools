@@ -26,14 +26,20 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Snackbar
+  Snackbar,
+  useTheme,
+  useMediaQuery,
+  Stack,
+  Collapse
 } from '@mui/material';
 import {
   Send as SendIcon,
   Add as AddIcon,
   Delete as DeleteIcon,
   ContentCopy as CopyIcon,
-  Clear as ClearIcon
+  Clear as ClearIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 
 interface Header {
@@ -73,6 +79,10 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function HttpRequestTool() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+
   // 基本请求信息
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('');
@@ -92,6 +102,7 @@ export default function HttpRequestTool() {
   const [responseTab, setResponseTab] = useState(0);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [requestConfigExpanded, setRequestConfigExpanded] = useState(!isMobile); // 移动端默认收起
 
   // 历史记录
   const [history, setHistory] = useState<RequestHistory[]>([]);
@@ -296,31 +307,36 @@ export default function HttpRequestTool() {
 
   return (
     <Box>
-      <Grid container spacing={3}>
+      <Grid container spacing={isSmallScreen ? 2 : 3}>
         {/* 使用说明 */}
         <Grid item xs={12}>
-          <Paper elevation={0} sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
-            <Typography variant="subtitle2" gutterBottom>
+          <Paper elevation={0} sx={{ p: isSmallScreen ? 1.5 : 2, bgcolor: 'background.default', borderRadius: 2 }}>
+            <Typography variant={isSmallScreen ? "body2" : "subtitle2"} gutterBottom>
               使用说明：输入API接口URL，选择HTTP方法，配置请求头和请求体，点击发送按钮测试API接口。
             </Typography>
           </Paper>
         </Grid>
 
-        {/* 请求配置区域 */}
+        {/* 快速请求区域 */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: isSmallScreen ? 2 : 3 }}>
             <Typography variant="h6" gutterBottom>
-              HTTP请求配置
+              HTTP请求测试
             </Typography>
 
-            {/* URL和方法 */}
-            <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-              <FormControl sx={{ minWidth: 120 }}>
+            {/* URL和方法 - 移动端垂直布局 */}
+            <Stack 
+              direction={isMobile ? "column" : "row"} 
+              spacing={2} 
+              sx={{ mb: 3 }}
+            >
+              <FormControl sx={{ minWidth: isMobile ? '100%' : 120 }}>
                 <InputLabel>方法</InputLabel>
                 <Select
                   value={method}
                   label="方法"
                   onChange={(e) => setMethod(e.target.value)}
+                  size={isSmallScreen ? "small" : "medium"}
                 >
                   {httpMethods.map((m) => (
                     <MenuItem key={m} value={m}>
@@ -336,174 +352,231 @@ export default function HttpRequestTool() {
                 onChange={(e) => setUrl(e.target.value)}
                 fullWidth
                 placeholder="https://api.example.com/users"
+                size={isSmallScreen ? "small" : "medium"}
+                sx={{ 
+                  flex: 1,
+                  minWidth: isMobile ? '100%' : 'auto'
+                }}
               />
               
-              <Button
-                variant="contained"
-                startIcon={loading ? <CircularProgress size={16} /> : <SendIcon />}
-                onClick={sendRequest}
-                disabled={loading}
-                sx={{ minWidth: 120 }}
-              >
-                {loading ? '发送中' : '发送'}
-              </Button>
-              
-              {loading && (
+              <Stack direction="row" spacing={1} sx={{ minWidth: isMobile ? '100%' : 'auto' }}>
                 <Button
-                  variant="outlined"
-                  color="error"
-                  onClick={cancelRequest}
+                  variant="contained"
+                  startIcon={loading ? <CircularProgress size={16} /> : <SendIcon />}
+                  onClick={sendRequest}
+                  disabled={loading}
+                  fullWidth={isMobile}
+                  size={isSmallScreen ? "small" : "medium"}
+                  sx={{ minWidth: isMobile ? 'auto' : 120 }}
                 >
-                  取消
+                  {loading ? '发送中' : '发送'}
                 </Button>
-              )}
-            </Box>
-
-            {/* 选项卡 */}
-            <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-              <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-                <Tab label="请求头" />
-                <Tab label="请求体" />
-                <Tab label="历史记录" />
-              </Tabs>
-            </Box>
-
-            {/* 请求头配置 */}
-            <TabPanel value={activeTab} index={0}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="subtitle1">请求头</Typography>
-                <Button startIcon={<AddIcon />} onClick={addHeader} size="small">
-                  添加请求头
-                </Button>
-              </Box>
-              
-              {headers.map((header, index) => (
-                <Box key={index} sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
-                  <TextField
-                    size="small"
-                    placeholder="请求头名称"
-                    value={header.key}
-                    onChange={(e) => updateHeader(index, 'key', e.target.value)}
-                    sx={{ flex: 1 }}
-                  />
-                  <TextField
-                    size="small"
-                    placeholder="请求头值"
-                    value={header.value}
-                    onChange={(e) => updateHeader(index, 'value', e.target.value)}
-                    sx={{ flex: 1 }}
-                  />
-                  <IconButton
-                    size="small"
-                    onClick={() => updateHeader(index, 'enabled', !header.enabled)}
-                    color={header.enabled ? 'primary' : 'default'}
-                  >
-                    {header.enabled ? '✓' : '○'}
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => removeHeader(index)}
-                    color="error"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
-                </Box>
-              ))}
-            </TabPanel>
-
-            {/* 请求体配置 */}
-            <TabPanel value={activeTab} index={1}>
-              <Box sx={{ mb: 2 }}>
-                <FormControl sx={{ minWidth: 120, mb: 2 }}>
-                  <InputLabel>请求体类型</InputLabel>
-                  <Select
-                    value={bodyType}
-                    label="请求体类型"
-                    onChange={(e) => setBodyType(e.target.value)}
-                    size="small"
-                  >
-                    <MenuItem value="json">JSON</MenuItem>
-                    <MenuItem value="text">纯文本</MenuItem>
-                    <MenuItem value="form">表单数据</MenuItem>
-                  </Select>
-                </FormControl>
                 
-                <TextField
-                  label="请求体内容"
-                  multiline
-                  rows={8}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  fullWidth
-                  placeholder={bodyType === 'json' ? '{\n  "key": "value"\n}' : '请输入请求体内容'}
-                  disabled={['GET', 'HEAD'].includes(method)}
-                  helperText={['GET', 'HEAD'].includes(method) ? '该HTTP方法不支持请求体' : ''}
-                />
-              </Box>
-            </TabPanel>
+                {loading && (
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={cancelRequest}
+                    size={isSmallScreen ? "small" : "medium"}
+                    fullWidth={isMobile}
+                  >
+                    取消
+                  </Button>
+                )}
+              </Stack>
+            </Stack>
 
-            {/* 历史记录 */}
-            <TabPanel value={activeTab} index={2}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="subtitle1">请求历史</Typography>
+            {/* 移动端高级配置展开/收起 */}
+            {isMobile && (
+              <Box sx={{ mb: 2 }}>
                 <Button
-                  startIcon={<ClearIcon />}
-                  onClick={() => setHistory([])}
+                  fullWidth
+                  variant="outlined"
+                  startIcon={requestConfigExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  onClick={() => setRequestConfigExpanded(!requestConfigExpanded)}
                   size="small"
-                  color="error"
-                  disabled={history.length === 0}
                 >
-                  清空历史
+                  {requestConfigExpanded ? '收起高级配置' : '展开高级配置'}
                 </Button>
               </Box>
-              
-              {history.length === 0 ? (
-                <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
-                  暂无请求历史
-                </Typography>
-              ) : (
-                <Box>
-                  {history.map((item) => (
-                    <Card key={item.id} sx={{ mb: 1, cursor: 'pointer' }} onClick={() => loadFromHistory(item)}>
-                      <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Chip label={item.method} size="small" color="primary" />
-                            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                              {item.url}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {item.status && (
-                              <Chip
-                                label={`${item.status} ${item.statusText}`}
-                                size="small"
-                                color={getStatusColor(item.status)}
-                              />
-                            )}
-                            <Typography variant="caption" color="text.secondary">
-                              {new Date(item.timestamp).toLocaleString()}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </Box>
-              )}
-            </TabPanel>
+            )}
+
+            {/* 高级配置区域 */}
+            <Collapse in={requestConfigExpanded}>
+              {/* 选项卡 */}
+              <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <Tabs 
+                  value={activeTab} 
+                  onChange={(e, newValue) => setActiveTab(newValue)}
+                  variant={isMobile ? "scrollable" : "standard"}
+                  scrollButtons={isMobile ? "auto" : false}
+                  allowScrollButtonsMobile
+                >
+                  <Tab label="请求头" />
+                  <Tab label="请求体" />
+                  <Tab label="历史记录" />
+                </Tabs>
+              </Box>
+
+              {/* 请求头配置 */}
+              <TabPanel value={activeTab} index={0}>
+                <Stack direction={isMobile ? "column" : "row"} justifyContent="space-between" alignItems={isMobile ? "stretch" : "center"} sx={{ mb: 2 }} spacing={1}>
+                  <Typography variant="subtitle1">请求头</Typography>
+                  <Button startIcon={<AddIcon />} onClick={addHeader} size="small" fullWidth={isMobile}>
+                    添加请求头
+                  </Button>
+                </Stack>
+                
+                {headers.map((header, index) => (
+                  <Stack key={index} direction={isMobile ? "column" : "row"} spacing={1} sx={{ mb: 1 }}>
+                    <TextField
+                      size="small"
+                      placeholder="请求头名称"
+                      value={header.key}
+                      onChange={(e) => updateHeader(index, 'key', e.target.value)}
+                      fullWidth={isMobile}
+                      sx={{ flex: isMobile ? 'none' : 1 }}
+                    />
+                    <TextField
+                      size="small"
+                      placeholder="请求头值"
+                      value={header.value}
+                      onChange={(e) => updateHeader(index, 'value', e.target.value)}
+                      fullWidth={isMobile}
+                      sx={{ flex: isMobile ? 'none' : 1 }}
+                    />
+                    <Stack direction="row" spacing={0.5}>
+                      <IconButton
+                        size="small"
+                        onClick={() => updateHeader(index, 'enabled', !header.enabled)}
+                        color={header.enabled ? 'primary' : 'default'}
+                      >
+                        {header.enabled ? '✓' : '○'}
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => removeHeader(index)}
+                        color="error"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Stack>
+                  </Stack>
+                ))}
+              </TabPanel>
+
+              {/* 请求体配置 */}
+              <TabPanel value={activeTab} index={1}>
+                <Stack spacing={2}>
+                  <FormControl sx={{ minWidth: isMobile ? '100%' : 120 }}>
+                    <InputLabel>请求体类型</InputLabel>
+                    <Select
+                      value={bodyType}
+                      label="请求体类型"
+                      onChange={(e) => setBodyType(e.target.value)}
+                      size="small"
+                    >
+                      <MenuItem value="json">JSON</MenuItem>
+                      <MenuItem value="text">纯文本</MenuItem>
+                      <MenuItem value="form">表单数据</MenuItem>
+                    </Select>
+                  </FormControl>
+                  
+                  <TextField
+                    label="请求体内容"
+                    multiline
+                    rows={isMobile ? 6 : 8}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    fullWidth
+                    placeholder={bodyType === 'json' ? '{\n  "key": "value"\n}' : '请输入请求体内容'}
+                    disabled={['GET', 'HEAD'].includes(method)}
+                    helperText={['GET', 'HEAD'].includes(method) ? '该HTTP方法不支持请求体' : ''}
+                    sx={{
+                      '& .MuiInputBase-input': {
+                        fontFamily: 'monospace',
+                        fontSize: isSmallScreen ? '12px' : '14px'
+                      }
+                    }}
+                  />
+                </Stack>
+              </TabPanel>
+
+              {/* 历史记录 */}
+              <TabPanel value={activeTab} index={2}>
+                <Stack direction={isMobile ? "column" : "row"} justifyContent="space-between" alignItems={isMobile ? "stretch" : "center"} sx={{ mb: 2 }} spacing={1}>
+                  <Typography variant="subtitle1">请求历史</Typography>
+                  <Button
+                    startIcon={<ClearIcon />}
+                    onClick={() => setHistory([])}
+                    size="small"
+                    color="error"
+                    disabled={history.length === 0}
+                    fullWidth={isMobile}
+                  >
+                    清空历史
+                  </Button>
+                </Stack>
+                
+                {history.length === 0 ? (
+                  <Typography color="text.secondary" align="center" sx={{ py: 4 }}>
+                    暂无请求历史
+                  </Typography>
+                ) : (
+                  <Stack spacing={1}>
+                    {history.map((item) => (
+                      <Card key={item.id} sx={{ cursor: 'pointer' }} onClick={() => loadFromHistory(item)}>
+                        <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
+                          <Stack direction={isMobile ? "column" : "row"} justifyContent="space-between" alignItems={isMobile ? "flex-start" : "center"} spacing={1}>
+                            <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0, flex: 1 }}>
+                              <Chip label={item.method} size="small" color="primary" />
+                              <Typography 
+                                variant="body2" 
+                                sx={{ 
+                                  fontFamily: 'monospace',
+                                  fontSize: isSmallScreen ? '11px' : '12px',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: isMobile ? 'nowrap' : 'normal'
+                                }}
+                              >
+                                {item.url}
+                              </Typography>
+                            </Stack>
+                            <Stack direction="row" alignItems="center" spacing={1}>
+                              {item.status && (
+                                <Chip
+                                  label={`${item.status} ${item.statusText}`}
+                                  size="small"
+                                  color={getStatusColor(item.status)}
+                                />
+                              )}
+                              <Typography variant="caption" color="text.secondary">
+                                {new Date(item.timestamp).toLocaleString()}
+                              </Typography>
+                            </Stack>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
+              </TabPanel>
+            </Collapse>
 
             {/* 操作按钮 */}
-            <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+            <Stack direction={isMobile ? "column" : "row"} spacing={1} sx={{ mt: 2 }}>
               <Button
                 startIcon={<ClearIcon />}
                 onClick={clearAll}
                 variant="outlined"
                 color="error"
+                fullWidth={isMobile}
+                size={isSmallScreen ? "small" : "medium"}
               >
                 清空所有
               </Button>
-            </Box>
+            </Stack>
           </Paper>
         </Grid>
 
@@ -517,31 +590,45 @@ export default function HttpRequestTool() {
         {/* 响应区域 */}
         {response && (
           <Grid item xs={12}>
-            <Paper sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Paper sx={{ p: isSmallScreen ? 2 : 3 }}>
+              <Stack direction={isMobile ? "column" : "row"} justifyContent="space-between" alignItems={isMobile ? "stretch" : "center"} sx={{ mb: 2 }} spacing={1}>
                 <Typography variant="h6">响应结果</Typography>
                 <Button
                   startIcon={<CopyIcon />}
                   onClick={copyResponse}
                   size="small"
+                  fullWidth={isMobile}
                 >
                   复制响应
                 </Button>
-              </Box>
+              </Stack>
 
               {/* 响应概览 */}
-              <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+              <Stack direction={isMobile ? "column" : "row"} spacing={1} sx={{ mb: 3 }}>
                 <Chip
                   label={`${response.status} ${response.statusText}`}
                   color={getStatusColor(response.status)}
+                  size={isSmallScreen ? "small" : "medium"}
                 />
-                <Chip label={`${response.duration}ms`} variant="outlined" />
-                <Chip label={`${response.size} bytes`} variant="outlined" />
-              </Box>
+                <Chip 
+                  label={`${response.duration}ms`} 
+                  variant="outlined" 
+                  size={isSmallScreen ? "small" : "medium"}
+                />
+                <Chip 
+                  label={`${response.size} bytes`} 
+                  variant="outlined" 
+                  size={isSmallScreen ? "small" : "medium"}
+                />
+              </Stack>
 
               {/* 响应选项卡 */}
               <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tabs value={responseTab} onChange={(e, newValue) => setResponseTab(newValue)}>
+                <Tabs 
+                  value={responseTab} 
+                  onChange={(e, newValue) => setResponseTab(newValue)}
+                  variant={isMobile ? "fullWidth" : "standard"}
+                >
                   <Tab label="响应体" />
                   <Tab label="响应头" />
                 </Tabs>
@@ -551,12 +638,15 @@ export default function HttpRequestTool() {
               <TabPanel value={responseTab} index={0}>
                 <TextField
                   multiline
-                  rows={12}
+                  rows={isMobile ? 8 : 12}
                   value={typeof response.data === 'string' ? response.data : formatJson(response.data)}
                   fullWidth
                   InputProps={{
                     readOnly: true,
-                    sx: { fontFamily: 'monospace', fontSize: '0.875rem' }
+                    sx: { 
+                      fontFamily: 'monospace', 
+                      fontSize: isSmallScreen ? '11px' : '0.875rem'
+                    }
                   }}
                 />
               </TabPanel>
@@ -574,8 +664,20 @@ export default function HttpRequestTool() {
                     <TableBody>
                       {Object.entries(response.headers).map(([key, value]) => (
                         <TableRow key={key}>
-                          <TableCell sx={{ fontFamily: 'monospace' }}>{key}</TableCell>
-                          <TableCell sx={{ fontFamily: 'monospace' }}>{String(value)}</TableCell>
+                          <TableCell sx={{ 
+                            fontFamily: 'monospace',
+                            fontSize: isSmallScreen ? '11px' : '0.875rem',
+                            wordBreak: 'break-word'
+                          }}>
+                            {key}
+                          </TableCell>
+                          <TableCell sx={{ 
+                            fontFamily: 'monospace',
+                            fontSize: isSmallScreen ? '11px' : '0.875rem',
+                            wordBreak: 'break-word'
+                          }}>
+                            {String(value)}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
