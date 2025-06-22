@@ -58,13 +58,15 @@ const InfoItem = ({ icon, title, value }: { icon: string; title: string; value: 
   </Box>
 );
 
+
+
 export default function IPQuery() {
   const [ipInfo, setIpInfo] = useState<IPInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [apiSource, setApiSource] = useState<string>('');
-  const [attemptCount, setAttemptCount] = useState<number>(0);
+
+
 
   // 复制文本到剪贴板
   const copyToClipboard = (text: string) => {
@@ -82,8 +84,6 @@ export default function IPQuery() {
   const refreshIPInfo = () => {
     setLoading(true);
     setError(null);
-    setApiSource('');
-    setAttemptCount(0);
     setRefreshKey(prev => prev + 1);
   };
 
@@ -102,11 +102,7 @@ export default function IPQuery() {
         
         // 获取响应头信息
         const source = response.headers.get('X-IP-Source') || '';
-        const attempt = response.headers.get('X-Attempt') || '0';
         const errorMsg = response.headers.get('X-Error') || '';
-        
-        setApiSource(source);
-        setAttemptCount(parseInt(attempt));
         
         if (!response.ok) {
           throw new Error(`查询失败 (状态码: ${response.status})`);
@@ -137,7 +133,6 @@ export default function IPQuery() {
           setError(`API查询失败，显示的是默认数据。${errorMsg ? `错误: ${errorMsg}` : ''}`);
         } else {
           setError(null);
-          console.log(`成功从 ${source} 获取IP信息，尝试次数: ${attempt}`);
         }
         
       } catch (err) {
@@ -185,25 +180,9 @@ export default function IPQuery() {
         </Typography>
       </Paper>
 
-      {/* API状态信息 */}
-      {(apiSource || attemptCount > 0) && (
-        <Paper
-          elevation={0}
-          sx={{
-            p: 2,
-            mb: 2,
-            bgcolor: apiSource === 'fallback' ? 'warning.light' : 'success.light',
-            color: apiSource === 'fallback' ? 'warning.contrastText' : 'success.contrastText',
-          }}
-        >
-          <Typography variant="body2">
-            {apiSource === 'fallback' 
-              ? '⚠️ 所有API查询失败，显示默认数据'
-              : `✅ 成功从 ${apiSource} 获取数据 ${attemptCount > 1 ? `(第${attemptCount}次尝试)` : ''}`
-            }
-          </Typography>
-        </Paper>
-      )}
+
+
+
 
       {/* 错误提示 */}
       {error && (
