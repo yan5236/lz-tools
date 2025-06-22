@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -16,6 +16,49 @@ import {
   useMediaQuery,
   Stack
 } from '@mui/material';
+
+// 1. 将常量数据移到组件外部
+// 这样它只会被创建一次，而不是在每次渲染时都创建
+const unitCategories = {
+  length: {
+    name: '长度',
+    units: {
+      mm: { name: '毫米', factor: 0.001 },
+      cm: { name: '厘米', factor: 0.01 },
+      m: { name: '米', factor: 1 },
+      km: { name: '千米', factor: 1000 },
+      inch: { name: '英寸', factor: 0.0254 },
+      ft: { name: '英尺', factor: 0.3048 }
+    }
+  },
+  weight: {
+    name: '重量',
+    units: {
+      g: { name: '克', factor: 0.001 },
+      kg: { name: '千克', factor: 1 },
+      ton: { name: '吨', factor: 1000 },
+      lb: { name: '磅', factor: 0.453592 }
+    }
+  },
+  temperature: {
+    name: '温度',
+    units: {
+      celsius: { name: '摄氏度', factor: 1 },
+      fahrenheit: { name: '华氏度', factor: 1 },
+      kelvin: { name: '开尔文', factor: 1 }
+    }
+  },
+  volume: {
+    name: '容量',
+    units: {
+      ml: { name: '毫升', factor: 0.001 },
+      l: { name: '升', factor: 1 },
+      gallon: { name: '加仑', factor: 3.78541 }
+    }
+  }
+};
+const categoryKeys = Object.keys(unitCategories);
+
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -81,72 +124,44 @@ export default function UnitConverter() {
     }
   }, [history, saveHistoryToLocal, lastConversion]);
 
-  const unitCategories = {
-    length: {
-      name: '长度',
-      units: {
-        mm: { name: '毫米', factor: 0.001 },
-        cm: { name: '厘米', factor: 0.01 },
-        m: { name: '米', factor: 1 },
-        km: { name: '千米', factor: 1000 },
-        inch: { name: '英寸', factor: 0.0254 },
-        ft: { name: '英尺', factor: 0.3048 }
-      }
-    },
-    weight: {
-      name: '重量',
-      units: {
-        g: { name: '克', factor: 0.001 },
-        kg: { name: '千克', factor: 1 },
-        ton: { name: '吨', factor: 1000 },
-        lb: { name: '磅', factor: 0.453592 }
-      }
-    },
-    temperature: {
-      name: '温度',
-      units: {
-        celsius: { name: '摄氏度', factor: 1 },
-        fahrenheit: { name: '华氏度', factor: 1 },
-        kelvin: { name: '开尔文', factor: 1 }
-      }
-    },
-    volume: {
-      name: '容量',
-      units: {
-        ml: { name: '毫升', factor: 0.001 },
-        l: { name: '升', factor: 1 },
-        gallon: { name: '加仑', factor: 3.78541 }
-      }
-    }
-  };
+  // 使用 useMemo 派生当前类别和单位，确保引用稳定
+  const currentCategoryKey = useMemo(() => categoryKeys[tabValue], [tabValue]);
+  const currentCategoryData = useMemo(() => unitCategories[currentCategoryKey as keyof typeof unitCategories], [currentCategoryKey]);
+  const currentUnits = useMemo(() => currentCategoryData.units || {}, [currentCategoryData]);
 
-  const categoryKeys = Object.keys(unitCategories);
-  const currentCategory = categoryKeys[tabValue];
-  const currentUnits = unitCategories[currentCategory as keyof typeof unitCategories]?.units || {};
-
+  // 2. 修正 useEffect 依赖项
+  // 这个 effect 的意图是当用户切换Tab（类别）时，重置单位选择。
+  // 因此，它只应该依赖于 `tabValue` (或派生出的 `currentUnits`)。
+  // 因为 currentUnits 现在是 memoized 的，它只会在 tabValue 改变时改变，所以这个 hook 现在可以正常工作了。
+  // 我们可以将依赖项简化为 `[currentCategoryKey]` 或 `[tabValue]`，更清晰地表达意图。
   useEffect(() => {
-    const firstUnit = Object.keys(currentUnits)[0];
-    const secondUnit = Object.keys(currentUnits)[1] || firstUnit;
-    setFromUnit(firstUnit);
-    setToUnit(secondUnit);
-  }, [tabValue, currentUnits]);
+    const unitKeys = Object.keys(currentUnits);
+    if (unitKeys.length > 0) {
+      const firstUnit = unitKeys[0];
+      const secondUnit = unitKeys[1] || firstUnit;
+      setFromUnit(firstUnit);
+      setToUnit(secondUnit);
+    }
+  }, [currentCategoryKey, currentUnits]); // 依赖于类别 key
 
-  const convertValue = useCallback((value: number, from: string, to: string, category: string) => {
+  // 3. 修正 convertValue 的 useCallback 依赖项
+  // 之前的 [] 是错误的，因为它在闭包中使用了 unitCategories。
+  // 但因为我们把 unitCategories 移到了外部，它成了不变量，所以空数组 [] 现在是安全的。
+  const convertValue = useCallback((value: number, from: string, to: string, categoryKey: string) => {
     if (!value || !from || !to) return 0;
-
-    const categoryData = unitCategories[category as keyof typeof unitCategories];
+    
+    // 确保我们从正确的常量中获取数据
+    const categoryData = unitCategories[categoryKey as keyof typeof unitCategories];
     if (!categoryData) return 0;
 
-    if (category === 'temperature') {
-      if (from === 'celsius' && to === 'fahrenheit') {
-        return (value * 9/5) + 32;
-      } else if (from === 'fahrenheit' && to === 'celsius') {
-        return (value - 32) * 5/9;
-      } else if (from === 'celsius' && to === 'kelvin') {
-        return value + 273.15;
-      } else if (from === 'kelvin' && to === 'celsius') {
-        return value - 273.15;
-      }
+    if (categoryKey === 'temperature') {
+      if (from === to) return value;
+      if (from === 'celsius' && to === 'fahrenheit') return (value * 9/5) + 32;
+      if (from === 'fahrenheit' && to === 'celsius') return (value - 32) * 5/9;
+      if (from === 'celsius' && to === 'kelvin') return value + 273.15;
+      if (from === 'kelvin' && to === 'celsius') return value - 273.15;
+      if (from === 'fahrenheit' && to === 'kelvin') return ((value - 32) * 5/9) + 273.15;
+      if (from === 'kelvin' && to === 'fahrenheit') return ((value - 273.15) * 9/5) + 32;
       return value;
     }
 
@@ -159,54 +174,37 @@ export default function UnitConverter() {
   // 只计算结果，不自动添加历史记录
   useEffect(() => {
     if (inputValue && fromUnit && toUnit) {
-      const convertedValue = convertValue(inputValue, fromUnit, toUnit, currentCategory);
+      const convertedValue = convertValue(inputValue, fromUnit, toUnit, currentCategoryKey);
       setResult(convertedValue);
     }
-  }, [inputValue, fromUnit, toUnit, currentCategory, convertValue]);
+  }, [inputValue, fromUnit, toUnit, currentCategoryKey, convertValue]);
 
+  // 格式化数字的辅助函数
+  const formatNumber = (num: number) => {
+    if (num === 0) return '0';
+    if (Math.abs(num) >= 1000000 || Math.abs(num) < 0.0001) {
+      return num.toExponential(3);
+    }
+    // 使用 toPrecision 来处理有效数字，避免过长的小数
+    return parseFloat(num.toPrecision(6)).toString();
+  };
+  
   // 手动转换按钮，添加到历史记录
   const performConversion = useCallback(() => {
     if (inputValue && fromUnit && toUnit && fromUnit !== toUnit) {
-      const convertedValue = convertValue(inputValue, fromUnit, toUnit, currentCategory);
+      const convertedValue = convertValue(inputValue, fromUnit, toUnit, currentCategoryKey);
       const fromUnitName = (currentUnits as any)[fromUnit]?.name || fromUnit;
       const toUnitName = (currentUnits as any)[toUnit]?.name || toUnit;
-      
-      // 智能格式化数字显示
-      const formatNumber = (num: number) => {
-        if (num === 0) return '0';
-        if (Math.abs(num) >= 1000000) return num.toExponential(3);
-        if (Math.abs(num) >= 1) return num.toFixed(3).replace(/\.?0+$/, '');
-        return num.toFixed(6).replace(/\.?0+$/, '');
-      };
       
       const historyEntry = `${formatNumber(inputValue)} ${fromUnitName} = ${formatNumber(convertedValue)} ${toUnitName}`;
       addToHistory(historyEntry);
     }
-  }, [inputValue, fromUnit, toUnit, currentCategory, convertValue, currentUnits, addToHistory]);
+  }, [inputValue, fromUnit, toUnit, currentCategoryKey, convertValue, currentUnits, addToHistory]);
 
   const swapUnits = useCallback(() => {
-    // 先记录当前的转换到历史
-    if (inputValue && fromUnit && toUnit && fromUnit !== toUnit) {
-      const convertedValue = convertValue(inputValue, fromUnit, toUnit, currentCategory);
-      const fromUnitName = (currentUnits as any)[fromUnit]?.name || fromUnit;
-      const toUnitName = (currentUnits as any)[toUnit]?.name || toUnit;
-      
-      // 智能格式化数字显示
-      const formatNumber = (num: number) => {
-        if (num === 0) return '0';
-        if (Math.abs(num) >= 1000000) return num.toExponential(3);
-        if (Math.abs(num) >= 1) return num.toFixed(3).replace(/\.?0+$/, '');
-        return num.toFixed(6).replace(/\.?0+$/, '');
-      };
-      
-      const historyEntry = `${formatNumber(inputValue)} ${fromUnitName} = ${formatNumber(convertedValue)} ${toUnitName}`;
-      addToHistory(historyEntry);
-    }
-    
-    // 然后交换单位
     setFromUnit(toUnit);
     setToUnit(fromUnit);
-  }, [fromUnit, toUnit, inputValue, convertValue, currentCategory, currentUnits, addToHistory]);
+  }, [fromUnit, toUnit]);
 
   return (
     <Box sx={{ maxWidth: isMobile ? '100%' : 900, mx: 'auto' }}>
@@ -230,7 +228,7 @@ export default function UnitConverter() {
             }
           }}
         >
-          {categoryKeys.map((key, index) => (
+          {categoryKeys.map((key) => (
             <Tab 
               key={key} 
               label={unitCategories[key as keyof typeof unitCategories].name}
@@ -243,17 +241,15 @@ export default function UnitConverter() {
             <Grid container spacing={isSmallScreen ? 1 : 3}>
               <Grid item xs={12} md={isMobile ? 12 : 8}>
                 <Stack spacing={isSmallScreen ? 1.5 : 2}>
-                  {/* 输入数值 */}
                   <TextField
                     fullWidth
                     label="数值"
                     type="number"
                     value={inputValue}
-                    onChange={(e) => setInputValue(Number(e.target.value))}
+                    onChange={(e) => setInputValue(Number(e.target.value) || 0)}
                     size={isSmallScreen ? 'small' : 'medium'}
                   />
 
-                  {/* 从单位选择 */}
                   <FormControl fullWidth size={isSmallScreen ? 'small' : 'medium'}>
                     <InputLabel>从</InputLabel>
                     <Select
@@ -261,15 +257,14 @@ export default function UnitConverter() {
                       label="从"
                       onChange={(e) => setFromUnit(e.target.value)}
                     >
-                      {Object.entries(currentUnits).map(([key, unit]) => (
-                        <MenuItem key={key} value={key}>
+                      {Object.entries(currentUnits).map(([unitKey, unit]) => (
+                        <MenuItem key={unitKey} value={unitKey}>
                           {(unit as any).name}
                         </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
 
-                  {/* 交换按钮 */}
                   <Box sx={{ textAlign: 'center' }}>
                     <Button
                       variant="outlined"
@@ -281,7 +276,6 @@ export default function UnitConverter() {
                     </Button>
                   </Box>
 
-                  {/* 到单位选择 */}
                   <FormControl fullWidth size={isSmallScreen ? 'small' : 'medium'}>
                     <InputLabel>到</InputLabel>
                     <Select
@@ -289,35 +283,28 @@ export default function UnitConverter() {
                       label="到"
                       onChange={(e) => setToUnit(e.target.value)}
                     >
-                      {Object.entries(currentUnits).map(([key, unit]) => (
-                        <MenuItem key={key} value={key}>
+                      {Object.entries(currentUnits).map(([unitKey, unit]) => (
+                        <MenuItem key={unitKey} value={unitKey}>
                           {(unit as any).name}
                         </MenuItem>
                       ))}
                     </Select>
                   </FormControl>
 
-                  {/* 结果显示 */}
                   <Box sx={{ 
                     p: isSmallScreen ? 1.5 : 2, 
                     bgcolor: 'primary.light', 
                     borderRadius: 1, 
                     textAlign: 'center' 
                   }}>
-                    <Typography variant={isSmallScreen ? "h5" : "h4"} color="primary.contrastText">
-                      {(() => {
-                        if (result === 0) return '0';
-                        if (Math.abs(result) >= 1000000) return result.toExponential(3);
-                        if (Math.abs(result) >= 1) return result.toFixed(3).replace(/\.?0+$/, '');
-                        return result.toFixed(6).replace(/\.?0+$/, '');
-                      })()}
+                    <Typography variant={isSmallScreen ? "h5" : "h4"} color="primary.contrastText" sx={{wordBreak: 'break-all'}}>
+                      {formatNumber(result)}
                     </Typography>
                     <Typography variant={isSmallScreen ? "body2" : "body1"} color="primary.contrastText">
                       {(currentUnits as any)[toUnit]?.name}
                     </Typography>
                   </Box>
 
-                  {/* 添加到历史按钮 */}
                   <Box sx={{ textAlign: 'center' }}>
                     <Button
                       variant="contained"
@@ -334,7 +321,6 @@ export default function UnitConverter() {
                 </Stack>
               </Grid>
 
-              {/* 转换历史 */}
               <Grid item xs={12} md={isMobile ? 12 : 4}>
                 <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
                   转换历史
@@ -369,7 +355,7 @@ export default function UnitConverter() {
                     size="small"
                     onClick={() => {
                       setHistory([]);
-                      localStorage.removeItem('unitConverterHistory');
+                      saveHistoryToLocal([]); // Also clear from local storage
                     }}
                     sx={{ mt: 1 }}
                     fullWidth={isMobile}
