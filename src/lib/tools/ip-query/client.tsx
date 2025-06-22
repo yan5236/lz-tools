@@ -13,25 +13,24 @@ import {
   CircularProgress, 
   Divider,
   Tooltip,
-  IconButton
+  IconButton,
+  Alert
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
 // IP信息接口
 interface IPInfo {
   ip: string;
-  country: string;
+  country_name: string;
   region: string;
   city: string;
   district?: string;
-  isp: string;
+  org: string;
   latitude: number;
   longitude: number;
   timezone: string;
   country_code?: string;
-  as?: string;
-  asname?: string;
-  organization?: string;
+  asn?: string;
 }
 
 // 样式化的信息卡片
@@ -53,7 +52,7 @@ const InfoItem = ({ icon, title, value }: { icon: string; title: string; value: 
         {title}
       </Typography>
       <Typography variant="body1" fontWeight="medium">
-        {value}
+        {value || '未知'}
       </Typography>
     </Box>
   </Box>
@@ -64,6 +63,8 @@ export default function IPQuery() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [apiSource, setApiSource] = useState<string>('');
+  const [attemptCount, setAttemptCount] = useState<number>(0);
 
   // 复制文本到剪贴板
   const copyToClipboard = (text: string) => {
@@ -81,6 +82,8 @@ export default function IPQuery() {
   const refreshIPInfo = () => {
     setLoading(true);
     setError(null);
+    setApiSource('');
+    setAttemptCount(0);
     setRefreshKey(prev => prev + 1);
   };
 
@@ -89,62 +92,72 @@ export default function IPQuery() {
     const fetchIPInfo = async () => {
       try {
         setLoading(true);
-        // 使用我们的代理 API 获取 IP 信息，避免 CORS 问题
-        const response = await fetch('/api/ip');
+        setError(null);
         
-        // 检查是否使用了回退数据
-        const isUsingFallback = response.headers.get('X-IP-Source') === 'fallback';
+        console.log('开始获取IP信息...');
+        const response = await fetch('/api/ip', {
+          method: 'GET',
+          cache: 'no-store',
+        });
+        
+        // 获取响应头信息
+        const source = response.headers.get('X-IP-Source') || '';
+        const attempt = response.headers.get('X-Attempt') || '0';
+        const errorMsg = response.headers.get('X-Error') || '';
+        
+        setApiSource(source);
+        setAttemptCount(parseInt(attempt));
         
         if (!response.ok) {
-          throw new Error('无法获取IP信息，请稍后再试');
+          throw new Error(`查询失败 (状态码: ${response.status})`);
         }
         
         const data = await response.json();
+        console.log('获取到的IP信息:', data);
         
-        // 构建自定义的IP信息对象
+        // 构建IP信息对象
         const formattedData: IPInfo = {
-          ip: data.ip,
-          country: data.country_name,
-          region: data.region,
-          city: data.city,
-          district: '',
-          isp: data.org || '未知',
-          latitude: data.latitude,
-          longitude: data.longitude,
-          timezone: data.timezone,
-          country_code: data.country_code,
-          as: data.asn,
-          asname: data.org,
-          organization: data.org
+          ip: data.ip || '未知',
+          country_name: data.country_name || '未知',
+          region: data.region || '未知',
+          city: data.city || '未知',
+          district: data.district || '',
+          org: data.org || '未知',
+          latitude: data.latitude || 0,
+          longitude: data.longitude || 0,
+          timezone: data.timezone || '未知',
+          country_code: data.country_code || '',
+          asn: data.asn || '',
         };
         
         setIpInfo(formattedData);
         
-        // 如果使用的是回退数据，设置一个轻微警告
-        if (isUsingFallback) {
-          setError('无法连接到IP查询服务，显示的是模拟数据');
+        // 检查是否使用了回退数据
+        if (source === 'fallback') {
+          setError(`API查询失败，显示的是默认数据。${errorMsg ? `错误: ${errorMsg}` : ''}`);
         } else {
           setError(null);
+          console.log(`成功从 ${source} 获取IP信息，尝试次数: ${attempt}`);
         }
+        
       } catch (err) {
         console.error('获取IP信息失败:', err);
-        setError(err instanceof Error ? err.message : '未知错误');
+        const errorMessage = err instanceof Error ? err.message : '未知错误';
+        setError(`获取IP信息失败: ${errorMessage}`);
         
-        // 在出错时也创建一个默认的IP信息对象以展示UI
+        // 设置默认的错误信息
         setIpInfo({
-          ip: '无法获取',
-          country: '未知',
+          ip: '获取失败',
+          country_name: '未知',
           region: '未知',
           city: '未知',
           district: '',
-          isp: '未知',
+          org: '查询失败',
           latitude: 0,
           longitude: 0,
           timezone: '未知',
           country_code: '',
-          as: '',
-          asname: '',
-          organization: ''
+          asn: '',
         });
       } finally {
         setLoading(false);
@@ -168,9 +181,36 @@ export default function IPQuery() {
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          本工具可以查询您当前的IP地址及相关地理位置信息，数据仅供参考。为保护您的隐私，所有查询通过我们的安全代理进行，不会直接暴露您的浏览器信息。
+          本工具可以查询您当前的真实IP地址及相关地理位置信息。我们使用多个API源进行查询，确保获取到最准确的信息。所有查询通过我们的安全代理进行，保护您的隐私。
         </Typography>
       </Paper>
+
+      {/* API状态信息 */}
+      {(apiSource || attemptCount > 0) && (
+        <Paper
+          elevation={0}
+          sx={{
+            p: 2,
+            mb: 2,
+            bgcolor: apiSource === 'fallback' ? 'warning.light' : 'success.light',
+            color: apiSource === 'fallback' ? 'warning.contrastText' : 'success.contrastText',
+          }}
+        >
+          <Typography variant="body2">
+            {apiSource === 'fallback' 
+              ? '⚠️ 所有API查询失败，显示默认数据'
+              : `✅ 成功从 ${apiSource} 获取数据 ${attemptCount > 1 ? `(第${attemptCount}次尝试)` : ''}`
+            }
+          </Typography>
+        </Paper>
+      )}
+
+      {/* 错误提示 */}
+      {error && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
 
       {/* IP信息卡片 */}
       <Box sx={{ mb: 3 }}>
@@ -195,8 +235,6 @@ export default function IPQuery() {
               
               {loading ? (
                 <CircularProgress size={24} color="inherit" />
-              ) : error ? (
-                <Typography color="error">获取失败</Typography>
               ) : (
                 <Box sx={{ display: 'flex', alignItems: 'center' }}>
                   <Typography variant="h5" fontWeight="bold" sx={{ mr: 1 }}>
@@ -219,26 +257,12 @@ export default function IPQuery() {
           {/* IP详细信息区域 */}
           {loading ? (
             <Grid item xs={12} sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-              <CircularProgress />
-            </Grid>
-          ) : error ? (
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3, textAlign: 'center' }}>
-                <Icon color="error" sx={{ fontSize: 48, mb: 2 }}>error_outline</Icon>
-                <Typography color="error" variant="h6" gutterBottom>
-                  获取IP信息失败
+              <Box sx={{ textAlign: 'center' }}>
+                <CircularProgress sx={{ mb: 2 }} />
+                <Typography color="text.secondary">
+                  正在查询IP信息，请稍候...
                 </Typography>
-                <Typography color="text.secondary" paragraph>
-                  {error}
-                </Typography>
-                <Button 
-                  variant="contained" 
-                  startIcon={<Icon>refresh</Icon>} 
-                  onClick={refreshIPInfo}
-                >
-                  重试
-                </Button>
-              </Paper>
+              </Box>
             </Grid>
           ) : ipInfo && (
             <>
@@ -255,7 +279,7 @@ export default function IPQuery() {
                     <InfoItem 
                       icon="flag" 
                       title="国家/地区" 
-                      value={ipInfo.country}
+                      value={ipInfo.country_name}
                     />
                     <InfoItem 
                       icon="location_city" 
@@ -288,24 +312,24 @@ export default function IPQuery() {
                     
                     <InfoItem 
                       icon="business" 
-                      title="运营商" 
-                      value={ipInfo.isp || '未知'}
+                      title="运营商/组织" 
+                      value={ipInfo.org}
                     />
                     <InfoItem 
                       icon="my_location" 
                       title="经度" 
-                      value={ipInfo.longitude}
+                      value={ipInfo.longitude || '未知'}
                     />
                     <InfoItem 
                       icon="my_location" 
                       title="纬度" 
-                      value={ipInfo.latitude}
+                      value={ipInfo.latitude || '未知'}
                     />
-                    {ipInfo.organization && (
+                    {ipInfo.asn && (
                       <InfoItem 
-                        icon="business_center" 
-                        title="组织" 
-                        value={ipInfo.organization}
+                        icon="dns" 
+                        title="ASN" 
+                        value={ipInfo.asn}
                       />
                     )}
                   </CardContent>
@@ -325,7 +349,7 @@ export default function IPQuery() {
           onClick={refreshIPInfo}
           disabled={loading}
         >
-          {loading ? '正在刷新...' : '刷新IP信息'}
+          {loading ? '正在查询...' : '刷新IP信息'}
         </Button>
       </Box>
 
@@ -341,7 +365,7 @@ export default function IPQuery() {
         }}
       >
         <Typography variant="body2" color="text.secondary">
-          注意：IP地址查询结果的准确性取决于IP数据库和您的网络环境。如果您使用VPN或代理服务，显示的地理位置可能与您的实际位置不符。
+          注意：IP地址查询结果的准确性取决于第三方IP数据库和您的网络环境。如果您使用VPN或代理服务，显示的地理位置可能与您的实际位置不符。我们使用多个API源进行查询，最多重试3次以确保获取到准确信息。
         </Typography>
       </Paper>
     </Box>
