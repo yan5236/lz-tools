@@ -6,10 +6,15 @@ import {
   Grid,
   Paper,
   Typography,
-  useTheme
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 
 export default function StandardCalculator() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const [display, setDisplay] = useState('0');
   const [expression, setExpression] = useState('');
   const [previousValue, setPreviousValue] = useState<number | null>(null);
@@ -38,8 +43,6 @@ export default function StandardCalculator() {
       console.error('保存计算历史失败:', error);
     }
   }, []);
-  
-  const theme = useTheme();
 
   const inputNumber = useCallback((num: string) => {
     if (waitingForNewValue) {
@@ -163,7 +166,7 @@ export default function StandardCalculator() {
 
     setWaitingForNewValue(true);
     setOperation(nextOperation);
-  }, [display, previousValue, operation]);
+  }, [display, previousValue, operation, history, saveHistoryToLocal]);
 
   const calculate = useCallback(() => {
     if (operation && previousValue !== null) {
@@ -202,7 +205,7 @@ export default function StandardCalculator() {
       setOperation(null);
       setWaitingForNewValue(true);
     }
-  }, [display, previousValue, operation]);
+  }, [display, previousValue, operation, history, saveHistoryToLocal]);
 
   const toggleSign = useCallback(() => {
     const value = parseFloat(display);
@@ -230,7 +233,7 @@ export default function StandardCalculator() {
     setPreviousValue(null);
     setOperation(null);
     setWaitingForNewValue(true);
-  }, [display]);
+  }, [display, history, saveHistoryToLocal]);
 
   const square = useCallback(() => {
     const value = parseFloat(display);
@@ -246,7 +249,7 @@ export default function StandardCalculator() {
     setPreviousValue(null);
     setOperation(null);
     setWaitingForNewValue(true);
-  }, [display]);
+  }, [display, history, saveHistoryToLocal]);
 
   const reciprocal = useCallback(() => {
     const value = parseFloat(display);
@@ -264,7 +267,7 @@ export default function StandardCalculator() {
       setOperation(null);
       setWaitingForNewValue(true);
     }
-  }, [display]);
+  }, [display, history, saveHistoryToLocal]);
 
   const buttons = [
     [
@@ -307,11 +310,11 @@ export default function StandardCalculator() {
   ];
 
   return (
-    <Box sx={{ maxWidth: 600, mx: 'auto' }}>
-      <Grid container spacing={2}>
+    <Box sx={{ maxWidth: isMobile ? '100%' : 600, mx: 'auto' }}>
+      <Grid container spacing={isSmallScreen ? 1 : 2}>
         {/* 计算器主体 */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2 }}>
+        <Grid item xs={12} md={isMobile ? 12 : 8}>
+          <Paper sx={{ p: isSmallScreen ? 1.5 : 2 }}>
             {/* 显示区域 */}
             <Box sx={{ mb: 2 }}>
               {/* 表达式显示 */}
@@ -322,7 +325,7 @@ export default function StandardCalculator() {
                 InputProps={{
                   readOnly: true,
                   style: {
-                    fontSize: '1rem',
+                    fontSize: isSmallScreen ? '0.9rem' : '1rem',
                     textAlign: 'right',
                     fontFamily: 'monospace',
                     color: theme.palette.text.secondary
@@ -338,7 +341,7 @@ export default function StandardCalculator() {
                 InputProps={{
                   readOnly: true,
                   style: {
-                    fontSize: '2rem',
+                    fontSize: isSmallScreen ? '1.5rem' : '2rem',
                     textAlign: 'right',
                     fontFamily: 'monospace',
                     fontWeight: 'bold'
@@ -348,14 +351,18 @@ export default function StandardCalculator() {
             </Box>
 
             {/* 功能按钮 */}
-            <Grid container spacing={1} sx={{ mb: 2 }}>
+            <Grid container spacing={isSmallScreen ? 0.5 : 1} sx={{ mb: 2 }}>
               {functionButtons.map((btn, index) => (
                 <Grid item xs={3} key={index}>
                   <Button
                     fullWidth
                     variant="outlined"
                     onClick={btn.action}
-                    sx={{ minHeight: 48 }}
+                    sx={{ 
+                      minHeight: isSmallScreen ? 40 : 48,
+                      fontSize: isSmallScreen ? '0.8rem' : '0.9rem',
+                      p: isSmallScreen ? 0.5 : 1
+                    }}
                   >
                     {btn.text}
                   </Button>
@@ -364,7 +371,7 @@ export default function StandardCalculator() {
             </Grid>
 
             {/* 数字和运算按钮 */}
-            <Grid container spacing={1}>
+            <Grid container spacing={isSmallScreen ? 0.5 : 1}>
               {buttons.map((row, rowIndex) => (
                 row.map((btn, colIndex) => (
                   <Grid item xs={3} key={`${rowIndex}-${colIndex}`}>
@@ -374,9 +381,10 @@ export default function StandardCalculator() {
                       color={btn.color as any || 'inherit'}
                       onClick={btn.action}
                       sx={{ 
-                        minHeight: 56,
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold'
+                        minHeight: isSmallScreen ? 48 : 56,
+                        fontSize: isSmallScreen ? '1rem' : '1.1rem',
+                        fontWeight: 'bold',
+                        p: isSmallScreen ? 0.5 : 1
                       }}
                     >
                       {btn.text}
@@ -388,10 +396,10 @@ export default function StandardCalculator() {
           </Paper>
         </Grid>
 
-        {/* 历史记录 */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, height: 'fit-content' }}>
-            <Typography variant="h6" gutterBottom>
+        {/* 历史记录 - 移动端全宽显示 */}
+        <Grid item xs={12} md={isMobile ? 12 : 4}>
+          <Paper sx={{ p: isSmallScreen ? 1.5 : 2, height: 'fit-content' }}>
+            <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
               计算历史
             </Typography>
             {history.length === 0 ? (
@@ -399,7 +407,10 @@ export default function StandardCalculator() {
                 暂无计算记录
               </Typography>
             ) : (
-              <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+              <Box sx={{ 
+                maxHeight: isMobile ? 200 : 300, 
+                overflow: 'auto' 
+              }}>
                 {history.map((entry, index) => (
                   <Typography
                     key={index}
@@ -407,8 +418,10 @@ export default function StandardCalculator() {
                     sx={{
                       fontFamily: 'monospace',
                       py: 0.5,
+                      fontSize: isSmallScreen ? '0.8rem' : '0.9rem',
                       borderBottom: index < history.length - 1 ? '1px solid' : 'none',
-                      borderColor: 'divider'
+                      borderColor: 'divider',
+                      wordBreak: 'break-all'
                     }}
                   >
                     {entry}
@@ -424,6 +437,7 @@ export default function StandardCalculator() {
                   localStorage.removeItem('standardCalculatorHistory');
                 }}
                 sx={{ mt: 1 }}
+                fullWidth={isMobile}
               >
                 清除历史
               </Button>

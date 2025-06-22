@@ -14,7 +14,10 @@ import {
   Divider,
   Tooltip,
   IconButton,
-  Alert
+  Alert,
+  useTheme,
+  useMediaQuery,
+  Stack
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 
@@ -58,15 +61,15 @@ const InfoItem = ({ icon, title, value }: { icon: string; title: string; value: 
   </Box>
 );
 
-
-
 export default function IPQuery() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const [ipInfo, setIpInfo] = useState<IPInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-
-
 
   // 复制文本到剪贴板
   const copyToClipboard = (text: string) => {
@@ -168,21 +171,17 @@ export default function IPQuery() {
       <Paper
         elevation={0}
         sx={{
-          p: 2,
+          p: isSmallScreen ? 1.5 : 2,
           mb: 3,
           bgcolor: 'background.default',
           borderLeft: '4px solid',
           borderColor: 'info.main',
         }}
       >
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant={isSmallScreen ? "body2" : "body2"} color="text.secondary">
           本工具可以查询您当前的真实IP地址及相关地理位置信息。我们使用多个API源进行查询，确保获取到最准确的信息。所有查询通过我们的安全代理进行，保护您的隐私。
         </Typography>
       </Paper>
-
-
-
-
 
       {/* 错误提示 */}
       {error && (
@@ -193,43 +192,67 @@ export default function IPQuery() {
 
       {/* IP信息卡片 */}
       <Box sx={{ mb: 3 }}>
-        <Grid container spacing={3}>
+        <Grid container spacing={isSmallScreen ? 2 : 3}>
           {/* 当前IP地址卡片 */}
           <Grid item xs={12}>
             <Paper 
               elevation={2} 
               sx={{ 
-                p: 3, 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'space-between',
+                p: isSmallScreen ? 2 : 3, 
                 bgcolor: 'primary.light',
                 color: 'white'
               }}
             >
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Icon sx={{ fontSize: 24, mr: 1 }}>public</Icon>
-                <Typography variant="h6">当前IP地址</Typography>
-              </Box>
-              
-              {loading ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : (
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Typography variant="h5" fontWeight="bold" sx={{ mr: 1 }}>
-                    {ipInfo?.ip}
+              {/* 移动端垂直布局，桌面端水平布局 */}
+              <Stack 
+                direction={isMobile ? "column" : "row"} 
+                alignItems={isMobile ? "flex-start" : "center"} 
+                justifyContent={isMobile ? "flex-start" : "space-between"}
+                spacing={isMobile ? 2 : 1}
+              >
+                {/* 标题部分 */}
+                <Stack direction="row" alignItems="center" spacing={1}>
+                  <Icon sx={{ fontSize: isSmallScreen ? 20 : 24 }}>public</Icon>
+                  <Typography variant={isSmallScreen ? "subtitle1" : "h6"}>
+                    当前IP地址
                   </Typography>
-                  <Tooltip title="复制IP地址">
-                    <IconButton 
-                      size="small" 
-                      onClick={() => copyToClipboard(ipInfo?.ip || '')}
-                      sx={{ color: 'white' }}
+                </Stack>
+                
+                {/* IP地址和操作部分 */}
+                {loading ? (
+                  <CircularProgress size={isSmallScreen ? 20 : 24} color="inherit" />
+                ) : (
+                  <Stack 
+                    direction="row" 
+                    alignItems="center" 
+                    spacing={1}
+                    sx={{ 
+                      width: isMobile ? '100%' : 'auto',
+                      justifyContent: isMobile ? 'space-between' : 'flex-end'
+                    }}
+                  >
+                    <Typography 
+                      variant={isSmallScreen ? "h6" : "h5"} 
+                      fontWeight="bold"
+                      sx={{ 
+                        wordBreak: 'break-all',
+                        flex: isMobile ? 1 : 'none'
+                      }}
                     >
-                      <Icon fontSize="small">content_copy</Icon>
-                    </IconButton>
-                  </Tooltip>
-                </Box>
-              )}
+                      {ipInfo?.ip}
+                    </Typography>
+                    <Tooltip title="复制IP地址">
+                      <IconButton 
+                        size={isSmallScreen ? "small" : "medium"}
+                        onClick={() => copyToClipboard(ipInfo?.ip || '')}
+                        sx={{ color: 'white' }}
+                      >
+                        <Icon fontSize={isSmallScreen ? "small" : "medium"}>content_copy</Icon>
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
+                )}
+              </Stack>
             </Paper>
           </Grid>
 
@@ -248,11 +271,13 @@ export default function IPQuery() {
               {/* 地理位置信息 */}
               <Grid item xs={12} md={6}>
                 <InfoCard>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Icon color="primary" sx={{ mr: 1 }}>location_on</Icon>
-                      <Typography variant="h6">地理位置信息</Typography>
-                    </Box>
+                  <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                      <Icon color="primary" sx={{ fontSize: isSmallScreen ? 20 : 24 }}>location_on</Icon>
+                      <Typography variant={isSmallScreen ? "subtitle1" : "h6"}>
+                        地理位置信息
+                      </Typography>
+                    </Stack>
                     <Divider sx={{ mb: 2 }} />
                     
                     <InfoItem 
@@ -282,11 +307,13 @@ export default function IPQuery() {
               {/* 网络信息 */}
               <Grid item xs={12} md={6}>
                 <InfoCard>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <Icon color="primary" sx={{ mr: 1 }}>router</Icon>
-                      <Typography variant="h6">网络信息</Typography>
-                    </Box>
+                  <CardContent sx={{ p: isSmallScreen ? 2 : 3 }}>
+                    <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                      <Icon color="primary" sx={{ fontSize: isSmallScreen ? 20 : 24 }}>router</Icon>
+                      <Typography variant={isSmallScreen ? "subtitle1" : "h6"}>
+                        网络信息
+                      </Typography>
+                    </Stack>
                     <Divider sx={{ mb: 2 }} />
                     
                     <InfoItem 
@@ -327,6 +354,8 @@ export default function IPQuery() {
           startIcon={<Icon>refresh</Icon>} 
           onClick={refreshIPInfo}
           disabled={loading}
+          fullWidth={isMobile}
+          size={isSmallScreen ? "medium" : "large"}
         >
           {loading ? '正在查询...' : '刷新IP信息'}
         </Button>
@@ -336,7 +365,7 @@ export default function IPQuery() {
       <Paper 
         elevation={0} 
         sx={{ 
-          p: 2, 
+          p: isSmallScreen ? 1.5 : 2, 
           mt: 4, 
           bgcolor: 'background.default',
           borderLeft: '4px solid',

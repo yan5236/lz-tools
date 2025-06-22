@@ -88,8 +88,9 @@ export default function CalculatorClient() {
             aria-label="计算器类型选择"
             sx={{
               '& .MuiTab-root': {
-                minHeight: 48,
-                fontSize: isMobile ? '0.8rem' : '0.9rem'
+                minHeight: isMobile ? 40 : 48,
+                fontSize: isMobile ? '0.7rem' : '0.9rem',
+                padding: isMobile ? '6px 8px' : '12px 16px'
               }
             }}
           >

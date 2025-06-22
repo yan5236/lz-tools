@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import CryptoJS from 'crypto-js';
 import {
   Box,
   TextField,
@@ -62,43 +63,50 @@ export default function HashGenerator() {
         return;
       }
 
-      // 将文本编码为 UTF-8
-      const encoder = new TextEncoder();
-      const data = encoder.encode(text);
-
-      // 使用 Web Crypto API 计算哈希
-      let hashBuffer: ArrayBuffer | null = null;
+      let hashResult: string = '';
       
       switch (algo) {
         case 'md5':
-          // Web Crypto API 不直接支持 MD5，简化实现使用自定义方法
-          setOutput('MD5 计算中...');
-          // 注意：浏览器的 Web Crypto API 不直接支持 MD5
-          // 在实际应用中应该使用第三方库如 CryptoJS
-          setOutput('暂不支持MD5，未集成第三方库');
+          // 使用 crypto-js 计算 MD5
+          hashResult = CryptoJS.MD5(text).toString();
+          setOutput(hashResult);
           break;
         case 'sha-1':
-          hashBuffer = await crypto.subtle.digest('SHA-1', data);
+          // 将文本编码为 UTF-8
+          const encoder = new TextEncoder();
+          const data = encoder.encode(text);
+          const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          hashResult = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          setOutput(hashResult);
           break;
         case 'sha-256':
-          hashBuffer = await crypto.subtle.digest('SHA-256', data);
+          const encoder256 = new TextEncoder();
+          const data256 = encoder256.encode(text);
+          const hashBuffer256 = await crypto.subtle.digest('SHA-256', data256);
+          const hashArray256 = Array.from(new Uint8Array(hashBuffer256));
+          hashResult = hashArray256.map(b => b.toString(16).padStart(2, '0')).join('');
+          setOutput(hashResult);
           break;
         case 'sha-384':
-          hashBuffer = await crypto.subtle.digest('SHA-384', data);
+          const encoder384 = new TextEncoder();
+          const data384 = encoder384.encode(text);
+          const hashBuffer384 = await crypto.subtle.digest('SHA-384', data384);
+          const hashArray384 = Array.from(new Uint8Array(hashBuffer384));
+          hashResult = hashArray384.map(b => b.toString(16).padStart(2, '0')).join('');
+          setOutput(hashResult);
           break;
         case 'sha-512':
-          hashBuffer = await crypto.subtle.digest('SHA-512', data);
+          const encoder512 = new TextEncoder();
+          const data512 = encoder512.encode(text);
+          const hashBuffer512 = await crypto.subtle.digest('SHA-512', data512);
+          const hashArray512 = Array.from(new Uint8Array(hashBuffer512));
+          hashResult = hashArray512.map(b => b.toString(16).padStart(2, '0')).join('');
+          setOutput(hashResult);
           break;
         default:
           setOutput('不支持的哈希算法');
           return;
-      }
-
-      if (algo !== 'md5' && hashBuffer) {
-        // 将哈希值转换为十六进制字符串
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        setOutput(hashHex);
       }
     } catch (error) {
       console.error('生成哈希时出错:', error);
@@ -125,34 +133,42 @@ export default function HashGenerator() {
           // 处理二进制数据
           const buffer = content as ArrayBuffer;
           try {
-            let hashBuffer: ArrayBuffer | null = null;
+            let hashResult: string = '';
             
             switch (algorithm) {
               case 'md5':
-                setOutput('MD5 计算中...');
-                setOutput('暂不支持MD5，未集成第三方库');
+                // 对于二进制文件，将ArrayBuffer转换为WordArray
+                const wordArray = CryptoJS.lib.WordArray.create(buffer);
+                hashResult = CryptoJS.MD5(wordArray).toString();
+                setOutput(hashResult);
                 break;
               case 'sha-1':
-                hashBuffer = await crypto.subtle.digest('SHA-1', buffer);
+                const hashBuffer1 = await crypto.subtle.digest('SHA-1', buffer);
+                const hashArray1 = Array.from(new Uint8Array(hashBuffer1));
+                hashResult = hashArray1.map(b => b.toString(16).padStart(2, '0')).join('');
+                setOutput(hashResult);
                 break;
               case 'sha-256':
-                hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+                const hashBuffer256 = await crypto.subtle.digest('SHA-256', buffer);
+                const hashArray256 = Array.from(new Uint8Array(hashBuffer256));
+                hashResult = hashArray256.map(b => b.toString(16).padStart(2, '0')).join('');
+                setOutput(hashResult);
                 break;
               case 'sha-384':
-                hashBuffer = await crypto.subtle.digest('SHA-384', buffer);
+                const hashBuffer384 = await crypto.subtle.digest('SHA-384', buffer);
+                const hashArray384 = Array.from(new Uint8Array(hashBuffer384));
+                hashResult = hashArray384.map(b => b.toString(16).padStart(2, '0')).join('');
+                setOutput(hashResult);
                 break;
               case 'sha-512':
-                hashBuffer = await crypto.subtle.digest('SHA-512', buffer);
+                const hashBuffer512 = await crypto.subtle.digest('SHA-512', buffer);
+                const hashArray512 = Array.from(new Uint8Array(hashBuffer512));
+                hashResult = hashArray512.map(b => b.toString(16).padStart(2, '0')).join('');
+                setOutput(hashResult);
                 break;
               default:
                 setOutput('不支持的哈希算法');
                 return;
-            }
-
-            if (algorithm !== 'md5' && hashBuffer) {
-              const hashArray = Array.from(new Uint8Array(hashBuffer));
-              const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-              setOutput(hashHex);
             }
           } catch (error) {
             console.error('处理文件时出错:', error);
@@ -169,36 +185,48 @@ export default function HashGenerator() {
   // 从文件生成哈希
   const generateHashFromFile = async (content: string, algo: string) => {
     try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(content);
-
-      let hashBuffer: ArrayBuffer | null = null;
+      let hashResult: string = '';
       
       switch (algo) {
         case 'md5':
-          setOutput('暂不支持MD5，未集成第三方库');
+          hashResult = CryptoJS.MD5(content).toString();
+          setOutput(hashResult);
           break;
         case 'sha-1':
-          hashBuffer = await crypto.subtle.digest('SHA-1', data);
+          const encoder = new TextEncoder();
+          const data = encoder.encode(content);
+          const hashBuffer = await crypto.subtle.digest('SHA-1', data);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          hashResult = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          setOutput(hashResult);
           break;
         case 'sha-256':
-          hashBuffer = await crypto.subtle.digest('SHA-256', data);
+          const encoder256 = new TextEncoder();
+          const data256 = encoder256.encode(content);
+          const hashBuffer256 = await crypto.subtle.digest('SHA-256', data256);
+          const hashArray256 = Array.from(new Uint8Array(hashBuffer256));
+          hashResult = hashArray256.map(b => b.toString(16).padStart(2, '0')).join('');
+          setOutput(hashResult);
           break;
         case 'sha-384':
-          hashBuffer = await crypto.subtle.digest('SHA-384', data);
+          const encoder384 = new TextEncoder();
+          const data384 = encoder384.encode(content);
+          const hashBuffer384 = await crypto.subtle.digest('SHA-384', data384);
+          const hashArray384 = Array.from(new Uint8Array(hashBuffer384));
+          hashResult = hashArray384.map(b => b.toString(16).padStart(2, '0')).join('');
+          setOutput(hashResult);
           break;
         case 'sha-512':
-          hashBuffer = await crypto.subtle.digest('SHA-512', data);
+          const encoder512 = new TextEncoder();
+          const data512 = encoder512.encode(content);
+          const hashBuffer512 = await crypto.subtle.digest('SHA-512', data512);
+          const hashArray512 = Array.from(new Uint8Array(hashBuffer512));
+          hashResult = hashArray512.map(b => b.toString(16).padStart(2, '0')).join('');
+          setOutput(hashResult);
           break;
         default:
           setOutput('不支持的哈希算法');
           return;
-      }
-
-      if (algo !== 'md5' && hashBuffer) {
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        setOutput(hashHex);
       }
     } catch (error) {
       console.error('生成哈希时出错:', error);

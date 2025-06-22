@@ -11,7 +11,10 @@ import {
   Select,
   MenuItem,
   Tabs,
-  Tab
+  Tab,
+  useTheme,
+  useMediaQuery,
+  Stack
 } from '@mui/material';
 
 interface TabPanelProps {
@@ -34,6 +37,9 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function UnitConverter() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [tabValue, setTabValue] = useState(0);
   const [inputValue, setInputValue] = useState<number>(1);
   const [fromUnit, setFromUnit] = useState<string>('');
@@ -203,18 +209,26 @@ export default function UnitConverter() {
   }, [fromUnit, toUnit, inputValue, convertValue, currentCategory, currentUnits, addToHistory]);
 
   return (
-    <Box sx={{ maxWidth: 900, mx: 'auto' }}>
-      <Typography variant="h5" gutterBottom align="center">
+    <Box sx={{ maxWidth: isMobile ? '100%' : 900, mx: 'auto' }}>
+      <Typography variant={isSmallScreen ? "h6" : "h5"} gutterBottom align="center">
         单位转换器
       </Typography>
 
-      <Paper sx={{ p: 2 }}>
+      <Paper sx={{ p: isSmallScreen ? 1.5 : 2 }}>
         <Tabs
           value={tabValue}
           onChange={(e, newValue) => setTabValue(newValue)}
           variant="scrollable"
           scrollButtons="auto"
-          sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
+          sx={{ 
+            borderBottom: 1, 
+            borderColor: 'divider', 
+            mb: 2,
+            '& .MuiTab-root': {
+              fontSize: isSmallScreen ? '0.8rem' : '0.9rem',
+              minHeight: isSmallScreen ? 40 : 48
+            }
+          }}
         >
           {categoryKeys.map((key, index) => (
             <Tab 
@@ -226,95 +240,103 @@ export default function UnitConverter() {
 
         {categoryKeys.map((key, index) => (
           <TabPanel key={key} value={tabValue} index={index}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={8}>
-                <Grid container spacing={2} alignItems="center">
-                  <Grid item xs={12} sm={6} md={3}>
-                    <TextField
-                      fullWidth
-                      label="数值"
-                      type="number"
-                      value={inputValue}
-                      onChange={(e) => setInputValue(Number(e.target.value))}
-                    />
-                  </Grid>
+            <Grid container spacing={isSmallScreen ? 1 : 3}>
+              <Grid item xs={12} md={isMobile ? 12 : 8}>
+                <Stack spacing={isSmallScreen ? 1.5 : 2}>
+                  {/* 输入数值 */}
+                  <TextField
+                    fullWidth
+                    label="数值"
+                    type="number"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(Number(e.target.value))}
+                    size={isSmallScreen ? 'small' : 'medium'}
+                  />
 
-                  <Grid item xs={12} sm={6} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>从</InputLabel>
-                      <Select
-                        value={fromUnit}
-                        label="从"
-                        onChange={(e) => setFromUnit(e.target.value)}
-                      >
-                        {Object.entries(currentUnits).map(([key, unit]) => (
-                          <MenuItem key={key} value={key}>
-                            {(unit as any).name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+                  {/* 从单位选择 */}
+                  <FormControl fullWidth size={isSmallScreen ? 'small' : 'medium'}>
+                    <InputLabel>从</InputLabel>
+                    <Select
+                      value={fromUnit}
+                      label="从"
+                      onChange={(e) => setFromUnit(e.target.value)}
+                    >
+                      {Object.entries(currentUnits).map(([key, unit]) => (
+                        <MenuItem key={key} value={key}>
+                          {(unit as any).name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
 
-                  <Grid item xs={12} sm={12} md={2} sx={{ textAlign: 'center' }}>
+                  {/* 交换按钮 */}
+                  <Box sx={{ textAlign: 'center' }}>
                     <Button
                       variant="outlined"
                       onClick={swapUnits}
-                      sx={{ minWidth: 80 }}
+                      size={isSmallScreen ? 'small' : 'medium'}
+                      sx={{ minWidth: isSmallScreen ? 60 : 80 }}
                     >
                       ⇄
                     </Button>
-                  </Grid>
+                  </Box>
 
-                  <Grid item xs={12} sm={6} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>到</InputLabel>
-                      <Select
-                        value={toUnit}
-                        label="到"
-                        onChange={(e) => setToUnit(e.target.value)}
-                      >
-                        {Object.entries(currentUnits).map(([key, unit]) => (
-                          <MenuItem key={key} value={key}>
-                            {(unit as any).name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
+                  {/* 到单位选择 */}
+                  <FormControl fullWidth size={isSmallScreen ? 'small' : 'medium'}>
+                    <InputLabel>到</InputLabel>
+                    <Select
+                      value={toUnit}
+                      label="到"
+                      onChange={(e) => setToUnit(e.target.value)}
+                    >
+                      {Object.entries(currentUnits).map(([key, unit]) => (
+                        <MenuItem key={key} value={key}>
+                          {(unit as any).name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
 
-                  <Grid item xs={12}>
-                    <Box sx={{ p: 2, bgcolor: 'primary.light', borderRadius: 1, textAlign: 'center' }}>
-                      <Typography variant="h4" color="primary.contrastText">
-                        {(() => {
-                          if (result === 0) return '0';
-                          if (Math.abs(result) >= 1000000) return result.toExponential(3);
-                          if (Math.abs(result) >= 1) return result.toFixed(3).replace(/\.?0+$/, '');
-                          return result.toFixed(6).replace(/\.?0+$/, '');
-                        })()}
-                      </Typography>
-                      <Typography variant="body2" color="primary.contrastText">
-                        {(currentUnits as any)[toUnit]?.name}
-                      </Typography>
-                    </Box>
-                  </Grid>
+                  {/* 结果显示 */}
+                  <Box sx={{ 
+                    p: isSmallScreen ? 1.5 : 2, 
+                    bgcolor: 'primary.light', 
+                    borderRadius: 1, 
+                    textAlign: 'center' 
+                  }}>
+                    <Typography variant={isSmallScreen ? "h5" : "h4"} color="primary.contrastText">
+                      {(() => {
+                        if (result === 0) return '0';
+                        if (Math.abs(result) >= 1000000) return result.toExponential(3);
+                        if (Math.abs(result) >= 1) return result.toFixed(3).replace(/\.?0+$/, '');
+                        return result.toFixed(6).replace(/\.?0+$/, '');
+                      })()}
+                    </Typography>
+                    <Typography variant={isSmallScreen ? "body2" : "body1"} color="primary.contrastText">
+                      {(currentUnits as any)[toUnit]?.name}
+                    </Typography>
+                  </Box>
 
-                  <Grid item xs={12} sx={{ textAlign: 'center' }}>
+                  {/* 添加到历史按钮 */}
+                  <Box sx={{ textAlign: 'center' }}>
                     <Button
                       variant="contained"
                       color="primary"
                       onClick={performConversion}
                       disabled={!inputValue || fromUnit === toUnit}
-                      sx={{ mt: 1, minWidth: 120 }}
+                      size={isSmallScreen ? 'small' : 'medium'}
+                      fullWidth={isMobile}
+                      sx={{ minWidth: isMobile ? 'auto' : 120 }}
                     >
                       添加到历史
                     </Button>
-                  </Grid>
-                </Grid>
+                  </Box>
+                </Stack>
               </Grid>
 
-              <Grid item xs={12} md={4}>
-                <Typography variant="h6" gutterBottom>
+              {/* 转换历史 */}
+              <Grid item xs={12} md={isMobile ? 12 : 4}>
+                <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
                   转换历史
                 </Typography>
                 {history.length === 0 ? (
@@ -322,7 +344,7 @@ export default function UnitConverter() {
                     暂无转换记录
                   </Typography>
                 ) : (
-                  <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+                  <Box sx={{ maxHeight: isMobile ? 200 : 300, overflow: 'auto' }}>
                     {history.map((entry, index) => (
                       <Typography
                         key={index}
@@ -333,7 +355,8 @@ export default function UnitConverter() {
                           mb: 1,
                           bgcolor: 'background.default',
                           borderRadius: 1,
-                          fontSize: '0.8rem'
+                          fontSize: isSmallScreen ? '0.7rem' : '0.8rem',
+                          wordBreak: 'break-all'
                         }}
                       >
                         {entry}
@@ -349,6 +372,7 @@ export default function UnitConverter() {
                       localStorage.removeItem('unitConverterHistory');
                     }}
                     sx={{ mt: 1 }}
+                    fullWidth={isMobile}
                   >
                     清除历史
                   </Button>

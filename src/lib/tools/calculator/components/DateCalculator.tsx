@@ -9,397 +9,379 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Card,
+  CardContent,
+  Divider,
+  useTheme,
+  useMediaQuery,
+  Stack
 } from '@mui/material';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import dayjs, { Dayjs } from 'dayjs';
+import 'dayjs/locale/zh-cn';
+
+dayjs.locale('zh-cn');
 
 export default function DateCalculator() {
-  const [baseDate, setBaseDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [addValue, setAddValue] = useState<number>(0);
-  const [addUnit, setAddUnit] = useState<string>('days');
-  const [addResult, setAddResult] = useState<string>('');
-
-  const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [diffResult, setDiffResult] = useState<any>(null);
-
-  const [birthDate, setBirthDate] = useState<string>('');
-  const [ageResult, setAgeResult] = useState<any>(null);
-
-  const [history, setHistory] = useState<string[]>([]);
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
-
-  // 从localStorage加载历史记录
-  useEffect(() => {
-    const savedHistory = localStorage.getItem('dateCalculatorHistory');
-    if (savedHistory) {
-      try {
-        const parsedHistory = JSON.parse(savedHistory);
-        setHistory(parsedHistory);
-      } catch (error) {
-        console.error('加载计算历史失败:', error);
-      }
-    }
-  }, []);
-
-  // 实时更新当前时间
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000); // 每秒更新一次
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // 保存历史记录到localStorage
-  const saveHistoryToLocal = useCallback((newHistory: string[]) => {
-    try {
-      localStorage.setItem('dateCalculatorHistory', JSON.stringify(newHistory));
-    } catch (error) {
-      console.error('保存计算历史失败:', error);
-    }
-  }, []);
-
-  const addToHistory = useCallback((entry: string) => {
-    const newHistory = [entry, ...history.slice(0, 9)];
-    setHistory(newHistory);
-    saveHistoryToLocal(newHistory);
-  }, [history, saveHistoryToLocal]);
-
-  const calculateDateAdd = useCallback(() => {
-    if (!baseDate || addValue === 0) return;
-
-    const result = new Date(baseDate);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  
+  const [startDate, setStartDate] = useState<Dayjs | null>(dayjs());
+  const [endDate, setEndDate] = useState<Dayjs | null>(dayjs().add(30, 'day'));
+  const [addSubtractDate, setAddSubtractDate] = useState<Dayjs | null>(dayjs());
+  const [addSubtractValue, setAddSubtractValue] = useState<number>(30);
+  const [addSubtractUnit, setAddSubtractUnit] = useState<'day' | 'week' | 'month' | 'year'>('day');
+  const [operation, setOperation] = useState<'add' | 'subtract'>('add');
+  const [birthDate, setBirthDate] = useState<Dayjs | null>(dayjs().subtract(25, 'year'));
+  
+  const calculateDateDifference = useCallback(() => {
+    if (!startDate || !endDate) return null;
     
-    switch (addUnit) {
-      case 'years':
-        result.setFullYear(result.getFullYear() + addValue);
-        break;
-      case 'months':
-        result.setMonth(result.getMonth() + addValue);
-        break;
-      case 'days':
-        result.setDate(result.getDate() + addValue);
-        break;
-      case 'hours':
-        result.setHours(result.getHours() + addValue);
-        break;
-      case 'minutes':
-        result.setMinutes(result.getMinutes() + addValue);
-        break;
-      case 'seconds':
-        result.setSeconds(result.getSeconds() + addValue);
-        break;
-    }
-
-    setAddResult(result.toLocaleDateString());
+    const diffInDays = endDate.diff(startDate, 'day');
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    const diffInMonths = endDate.diff(startDate, 'month');
+    const diffInYears = endDate.diff(startDate, 'year');
     
-    const operation = addValue > 0 ? '加上' : '减去';
-    const unitNames = {
-      years: '年',
-      months: '月',
-      days: '天',
-      hours: '小时',
-      minutes: '分钟',
-      seconds: '秒'
+    return {
+      days: Math.abs(diffInDays),
+      weeks: Math.abs(diffInWeeks),
+      months: Math.abs(diffInMonths),
+      years: Math.abs(diffInYears),
+      isNegative: diffInDays < 0
     };
+  }, [startDate, endDate]);
+
+  const calculateAddSubtract = useCallback(() => {
+    if (!addSubtractDate) return null;
     
-    addToHistory(`${new Date(baseDate).toLocaleDateString()} ${operation} ${Math.abs(addValue)} ${unitNames[addUnit as keyof typeof unitNames]} = ${result.toLocaleDateString()}`);
-  }, [baseDate, addValue, addUnit, addToHistory]);
-
-  const calculateDateDiff = useCallback(() => {
-    if (!startDate || !endDate) return;
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const result = operation === 'add' 
+      ? addSubtractDate.add(addSubtractValue, addSubtractUnit)
+      : addSubtractDate.subtract(addSubtractValue, addSubtractUnit);
     
-    const diffMs = Math.abs(end.getTime() - start.getTime());
+    return result;
+  }, [addSubtractDate, addSubtractValue, addSubtractUnit, operation]);
+
+  const getAgeInfo = useCallback((birthDate: Dayjs) => {
+    const now = dayjs();
+    const years = now.diff(birthDate, 'year');
+    const months = now.diff(birthDate.add(years, 'year'), 'month');
+    const days = now.diff(birthDate.add(years, 'year').add(months, 'month'), 'day');
     
-    const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    const totalHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const totalMinutes = Math.floor(diffMs / (1000 * 60));
-
-    const result = {
-      totalDays,
-      totalHours,
-      totalMinutes
-    };
-
-    setDiffResult(result);
+    const totalDays = now.diff(birthDate, 'day');
+    const totalWeeks = Math.floor(totalDays / 7);
+    const totalMonths = now.diff(birthDate, 'month');
     
-    addToHistory(`${start.toLocaleDateString()} 到 ${end.toLocaleDateString()} 相差 ${totalDays} 天`);
-  }, [startDate, endDate, addToHistory]);
-
-  const calculateAge = useCallback(() => {
-    if (!birthDate) return;
-
-    const today = new Date();
-    const birth = new Date(birthDate);
-    
-    let years = today.getFullYear() - birth.getFullYear();
-    let months = today.getMonth() - birth.getMonth();
-    let days = today.getDate() - birth.getDate();
-
-    if (days < 0) {
-      months--;
-      const lastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-      days += lastMonth.getDate();
-    }
-
-    if (months < 0) {
-      years--;
-      months += 12;
-    }
-
-    const totalDays = Math.floor((today.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24));
-
-    const result = {
+    return {
       years,
       months,
       days,
-      totalDays
+      totalDays,
+      totalWeeks,
+      totalMonths
     };
+  }, []);
 
-    setAgeResult(result);
-    
-    addToHistory(`出生日期 ${birth.toLocaleDateString()}，现在 ${years} 岁 ${months} 个月 ${days} 天`);
-  }, [birthDate, addToHistory]);
-
-  const getCurrentTimeInfo = useCallback(() => {
-    const timestamp = currentTime.getTime();
-    const iso = currentTime.toISOString();
-    const locale = currentTime.toLocaleString('zh-CN');
-    
-    return {
-      timestamp,
-      iso,
-      locale,
-      year: currentTime.getFullYear(),
-      month: currentTime.getMonth() + 1,
-      date: currentTime.getDate(),
-      day: currentTime.getDay()
-    };
-  }, [currentTime]);
-
-  const timeInfo = getCurrentTimeInfo();
-  const dayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  const difference = calculateDateDifference();
+  const addSubtractResult = calculateAddSubtract();
+  const ageInfo = birthDate ? getAgeInfo(birthDate) : null;
 
   return (
-    <Box sx={{ maxWidth: 1000, mx: 'auto' }}>
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              当前时间信息
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={6} md={3}>
-                <Typography variant="body2" color="text.secondary">本地时间</Typography>
-                <Typography variant="body1" fontFamily="monospace">{timeInfo.locale}</Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Typography variant="body2" color="text.secondary">时间戳</Typography>
-                <Typography variant="body1" fontFamily="monospace">{timeInfo.timestamp}</Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Typography variant="body2" color="text.secondary">ISO格式</Typography>
-                <Typography variant="body1" fontFamily="monospace" sx={{ fontSize: '0.8rem' }}>{timeInfo.iso}</Typography>
-              </Grid>
-              <Grid item xs={12} sm={6} md={3}>
-                <Typography variant="body2" color="text.secondary">星期</Typography>
-                <Typography variant="body1">{dayNames[timeInfo.day]}</Typography>
-              </Grid>
-            </Grid>
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              日期加减计算
-            </Typography>
-            
-            <TextField
-              fullWidth
-              label="基准日期"
-              type="date"
-              value={baseDate}
-              onChange={(e) => setBaseDate(e.target.value)}
-              sx={{ mb: 2 }}
-            />
-            
-            <Grid container spacing={2} sx={{ mb: 2 }}>
-              <Grid item xs={6}>
-                <TextField
-                  fullWidth
-                  label="数值"
-                  type="number"
-                  value={addValue}
-                  onChange={(e) => setAddValue(Number(e.target.value))}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <FormControl fullWidth>
-                  <InputLabel>单位</InputLabel>
-                  <Select
-                    value={addUnit}
-                    label="单位"
-                    onChange={(e) => setAddUnit(e.target.value)}
-                  >
-                    <MenuItem value="years">年</MenuItem>
-                    <MenuItem value="months">月</MenuItem>
-                    <MenuItem value="days">天</MenuItem>
-                    <MenuItem value="hours">小时</MenuItem>
-                    <MenuItem value="minutes">分钟</MenuItem>
-                    <MenuItem value="seconds">秒</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-            
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={calculateDateAdd}
-              sx={{ mb: 2 }}
-            >
-              计算
-            </Button>
-            
-            {addResult && (
-              <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-                <Typography variant="body2" color="text.secondary">结果</Typography>
-                <Typography variant="h6">{addResult}</Typography>
-              </Box>
-            )}
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              日期差计算
-            </Typography>
-            
-            <TextField
-              fullWidth
-              label="开始日期"
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              sx={{ mb: 2 }}
-            />
-            
-            <TextField
-              fullWidth
-              label="结束日期"
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              sx={{ mb: 2 }}
-            />
-            
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={calculateDateDiff}
-              sx={{ mb: 2 }}
-            >
-              计算差值
-            </Button>
-            
-            {diffResult && (
-              <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>时间差</Typography>
-                <Typography variant="body2">
-                  总计：{diffResult.totalDays} 天
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="zh-cn">
+      <Box sx={{ maxWidth: isMobile ? '100%' : 1000, mx: 'auto' }}>
+        <Grid container spacing={isSmallScreen ? 1 : 2}>
+          {/* 日期差值计算 */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent sx={{ p: isSmallScreen ? 1.5 : 2 }}>
+                <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
+                  日期差值计算
                 </Typography>
-                <Typography variant="body2">
-                  总计：{diffResult.totalHours.toLocaleString()} 小时
-                </Typography>
-              </Box>
-            )}
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              年龄计算
-            </Typography>
-            
-            <TextField
-              fullWidth
-              label="出生日期"
-              type="date"
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              sx={{ mb: 2 }}
-            />
-            
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={calculateAge}
-              sx={{ mb: 2 }}
-            >
-              计算年龄
-            </Button>
-            
-            {ageResult && (
-              <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>年龄</Typography>
-                <Typography variant="h6">
-                  {ageResult.years} 岁 {ageResult.months} 个月 {ageResult.days} 天
-                </Typography>
-                <Typography variant="body2">
-                  总计：{ageResult.totalDays} 天
-                </Typography>
-              </Box>
-            )}
-          </Paper>
-        </Grid>
-
-        <Grid item xs={12} md={6}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              计算历史
-            </Typography>
-            {history.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                暂无计算记录
-              </Typography>
-            ) : (
-              <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
-                {history.map((entry, index) => (
-                  <Typography
-                    key={index}
-                    variant="body2"
-                    sx={{
-                      py: 1,
-                      borderBottom: index < history.length - 1 ? '1px solid' : 'none',
-                      borderColor: 'divider'
+                
+                <Stack spacing={isSmallScreen ? 1.5 : 2}>
+                  <DatePicker
+                    label="开始日期"
+                    value={startDate}
+                    onChange={setStartDate}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: isSmallScreen ? 'small' : 'medium'
+                      }
                     }}
-                  >
-                    {entry}
-                  </Typography>
-                ))}
-              </Box>
-            )}
-            {history.length > 0 && (
-              <Button
-                size="small"
-                onClick={() => {
-                  setHistory([]);
-                  localStorage.removeItem('dateCalculatorHistory');
-                }}
-                sx={{ mt: 1 }}
-              >
-                清除历史
-              </Button>
-            )}
-          </Paper>
+                  />
+                  
+                  <DatePicker
+                    label="结束日期"
+                    value={endDate}
+                    onChange={setEndDate}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: isSmallScreen ? 'small' : 'medium'
+                      }
+                    }}
+                  />
+                  
+                  {difference && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant={isSmallScreen ? "body2" : "subtitle2"} gutterBottom>
+                        {difference.isNegative ? '结束日期早于开始日期' : '时间差值'}:
+                      </Typography>
+                      <Grid container spacing={1}>
+                        <Grid item xs={6} sm={3}>
+                          <Paper sx={{ p: 1, textAlign: 'center' }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="textSecondary">
+                              天数
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body2" : "h6"}>
+                              {difference.days}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Paper sx={{ p: 1, textAlign: 'center' }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="textSecondary">
+                              周数
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body2" : "h6"}>
+                              {difference.weeks}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Paper sx={{ p: 1, textAlign: 'center' }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="textSecondary">
+                              月数
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body2" : "h6"}>
+                              {difference.months}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6} sm={3}>
+                          <Paper sx={{ p: 1, textAlign: 'center' }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="textSecondary">
+                              年数
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body2" : "h6"}>
+                              {difference.years}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                      </Grid>
+                    </Box>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* 日期加减计算 */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent sx={{ p: isSmallScreen ? 1.5 : 2 }}>
+                <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
+                  日期加减计算
+                </Typography>
+                
+                <Stack spacing={isSmallScreen ? 1.5 : 2}>
+                  <DatePicker
+                    label="基准日期"
+                    value={addSubtractDate}
+                    onChange={setAddSubtractDate}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: isSmallScreen ? 'small' : 'medium'
+                      }
+                    }}
+                  />
+                  
+                  <Stack direction={isSmallScreen ? "column" : "row"} spacing={1}>
+                    <FormControl size={isSmallScreen ? 'small' : 'medium'} sx={{ minWidth: 80 }}>
+                      <InputLabel>操作</InputLabel>
+                      <Select
+                        value={operation}
+                        label="操作"
+                        onChange={(e) => setOperation(e.target.value as 'add' | 'subtract')}
+                      >
+                        <MenuItem value="add">加上</MenuItem>
+                        <MenuItem value="subtract">减去</MenuItem>
+                      </Select>
+                    </FormControl>
+                    
+                    <TextField
+                      label="数值"
+                      type="number"
+                      value={addSubtractValue}
+                      onChange={(e) => setAddSubtractValue(Number(e.target.value))}
+                      size={isSmallScreen ? 'small' : 'medium'}
+                      sx={{ flexGrow: 1 }}
+                    />
+                    
+                    <FormControl size={isSmallScreen ? 'small' : 'medium'} sx={{ minWidth: 80 }}>
+                      <InputLabel>单位</InputLabel>
+                      <Select
+                        value={addSubtractUnit}
+                        label="单位"
+                        onChange={(e) => setAddSubtractUnit(e.target.value as 'day' | 'week' | 'month' | 'year')}
+                      >
+                        <MenuItem value="day">天</MenuItem>
+                        <MenuItem value="week">周</MenuItem>
+                        <MenuItem value="month">月</MenuItem>
+                        <MenuItem value="year">年</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Stack>
+                  
+                  {addSubtractResult && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant={isSmallScreen ? "body2" : "subtitle2"} gutterBottom>
+                        计算结果:
+                      </Typography>
+                      <Paper sx={{ p: isSmallScreen ? 1.5 : 2, textAlign: 'center', bgcolor: 'primary.light' }}>
+                        <Typography variant={isSmallScreen ? "body1" : "h6"}>
+                          {addSubtractResult.format('YYYY年MM月DD日 dddd')}
+                        </Typography>
+                      </Paper>
+                    </Box>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* 年龄计算 */}
+          <Grid item xs={12} md={6}>
+            <Card>
+              <CardContent sx={{ p: isSmallScreen ? 1.5 : 2 }}>
+                <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
+                  年龄计算器
+                </Typography>
+                
+                <Stack spacing={isSmallScreen ? 1.5 : 2}>
+                  <DatePicker
+                    label="出生日期"
+                    value={birthDate}
+                    onChange={setBirthDate}
+                    maxDate={dayjs()}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        size: isSmallScreen ? 'small' : 'medium',
+                        helperText: '请选择您的出生日期'
+                      }
+                    }}
+                  />
+                  
+                  {ageInfo && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant={isSmallScreen ? "body2" : "subtitle2"} gutterBottom>
+                        您的年龄信息:
+                      </Typography>
+                      
+                      {/* 精确年龄显示 */}
+                      <Paper sx={{ 
+                        p: isSmallScreen ? 1.5 : 2, 
+                        mb: 2, 
+                        textAlign: 'center',
+                        bgcolor: 'primary.light'
+                      }}>
+                        <Typography variant={isSmallScreen ? "h6" : "h5"} color="primary.contrastText">
+                          {ageInfo.years}岁 {ageInfo.months}个月 {ageInfo.days}天
+                        </Typography>
+                        <Typography variant="caption" color="primary.contrastText">
+                          精确年龄
+                        </Typography>
+                      </Paper>
+                      
+                      {/* 其他统计信息 */}
+                      <Grid container spacing={1}>
+                        <Grid item xs={6}>
+                          <Paper sx={{ p: 1, textAlign: 'center' }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="textSecondary">
+                              总天数
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body2" : "h6"}>
+                              {ageInfo.totalDays.toLocaleString()}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Paper sx={{ p: 1, textAlign: 'center' }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="textSecondary">
+                              总周数
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body2" : "h6"}>
+                              {ageInfo.totalWeeks.toLocaleString()}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Paper sx={{ p: 1, textAlign: 'center' }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="textSecondary">
+                              总月数
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body2" : "h6"}>
+                              {ageInfo.totalMonths}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                        <Grid item xs={6}>
+                          <Paper sx={{ p: 1, textAlign: 'center' }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="textSecondary">
+                              生日
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body2" : "h6"}>
+                              {birthDate?.format('MM-DD')}
+                            </Typography>
+                          </Paper>
+                        </Grid>
+                      </Grid>
+                      
+                      {/* 下次生日倒计时 */}
+                      {(() => {
+                        if (!birthDate) return null;
+                        const today = dayjs();
+                        const thisYearBirthday = birthDate.year(today.year());
+                        const nextBirthday = thisYearBirthday.isBefore(today) 
+                          ? thisYearBirthday.add(1, 'year') 
+                          : thisYearBirthday;
+                        const daysUntilBirthday = nextBirthday.diff(today, 'day');
+                        
+                        return (
+                          <Paper sx={{ 
+                            p: isSmallScreen ? 1 : 1.5, 
+                            mt: 1, 
+                            textAlign: 'center',
+                            bgcolor: 'secondary.light'
+                          }}>
+                            <Typography variant={isSmallScreen ? "caption" : "body2"} color="secondary.contrastText">
+                              距离下次生日还有
+                            </Typography>
+                            <Typography variant={isSmallScreen ? "body1" : "h6"} color="secondary.contrastText">
+                              {daysUntilBirthday === 0 ? '今天就是生日！🎉' : `${daysUntilBirthday} 天`}
+                            </Typography>
+                            <Typography variant="caption" color="secondary.contrastText">
+                              {nextBirthday.format('YYYY年MM月DD日')}
+                            </Typography>
+                          </Paper>
+                        );
+                      })()}
+                    </Box>
+                  )}
+                </Stack>
+              </CardContent>
+            </Card>
+          </Grid>
+
+
         </Grid>
-      </Grid>
-    </Box>
+      </Box>
+    </LocalizationProvider>
   );
 } 

@@ -10,7 +10,9 @@ import {
   FormLabel,
   RadioGroup,
   FormControlLabel,
-  Radio
+  Radio,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 
 type NumberBase = 'BIN' | 'OCT' | 'DEC' | 'HEX';
@@ -24,6 +26,9 @@ interface ButtonConfig {
 }
 
 export default function ProgrammerCalculator() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [display, setDisplay] = useState('0');
   const [base, setBase] = useState<NumberBase>('DEC');
   const [previousValue, setPreviousValue] = useState<number | null>(null);
@@ -228,23 +233,23 @@ export default function ProgrammerCalculator() {
       { text: '=', action: calculate, color: 'success' }
     ],
     [
-      { text: '0', action: () => inputDigit('0'), span: 3 },
+      { text: '0', action: () => inputDigit('0'), span: isSmallScreen ? 2 : 3 },
       { text: 'AND', action: () => performOperation('AND') }
     ]
   ];
 
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-      <Grid container spacing={2}>
+    <Box sx={{ maxWidth: isMobile ? '100%' : 800, mx: 'auto' }}>
+      <Grid container spacing={isSmallScreen ? 1 : 2}>
         <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
+          <Paper sx={{ p: isSmallScreen ? 1.5 : 2 }}>
             <TextField
               fullWidth
               value={display}
               InputProps={{
                 readOnly: true,
                 style: {
-                  fontSize: '2rem',
+                  fontSize: isSmallScreen ? '1.5rem' : '2rem',
                   textAlign: 'right',
                   fontFamily: 'monospace'
                 }
@@ -255,41 +260,83 @@ export default function ProgrammerCalculator() {
             <FormControl component="fieldset" sx={{ mb: 2 }}>
               <FormLabel component="legend">进制选择</FormLabel>
               <RadioGroup
-                row
+                row={!isSmallScreen}
                 value={base}
                 onChange={(e) => changeBase(e.target.value as NumberBase)}
+                sx={{
+                  flexDirection: isSmallScreen ? 'column' : 'row',
+                  '& .MuiFormControlLabel-root': {
+                    fontSize: isSmallScreen ? '0.9rem' : '1rem'
+                  }
+                }}
               >
-                <FormControlLabel value="BIN" control={<Radio />} label="二进制" />
-                <FormControlLabel value="OCT" control={<Radio />} label="八进制" />
-                <FormControlLabel value="DEC" control={<Radio />} label="十进制" />
-                <FormControlLabel value="HEX" control={<Radio />} label="十六进制" />
+                <FormControlLabel value="BIN" control={<Radio size={isSmallScreen ? 'small' : 'medium'} />} label="二进制" />
+                <FormControlLabel value="OCT" control={<Radio size={isSmallScreen ? 'small' : 'medium'} />} label="八进制" />
+                <FormControlLabel value="DEC" control={<Radio size={isSmallScreen ? 'small' : 'medium'} />} label="十进制" />
+                <FormControlLabel value="HEX" control={<Radio size={isSmallScreen ? 'small' : 'medium'} />} label="十六进制" />
               </RadioGroup>
             </FormControl>
 
-            <Grid container spacing={1} sx={{ mb: 2 }}>
+            <Grid container spacing={isSmallScreen ? 0.5 : 1} sx={{ mb: 2 }}>
               <Grid item xs={6} md={3}>
-                <Box sx={{ p: 1, bgcolor: base === 'BIN' ? 'primary.light' : 'background.default', borderRadius: 1 }}>
-                  <Typography variant="caption">BIN: {allValues.BIN}</Typography>
+                <Box sx={{ 
+                  p: isSmallScreen ? 0.5 : 1, 
+                  bgcolor: base === 'BIN' ? 'primary.light' : 'background.default', 
+                  borderRadius: 1 
+                }}>
+                  <Typography variant={isSmallScreen ? "caption" : "body2"} sx={{ 
+                    fontSize: isSmallScreen ? '0.7rem' : '0.8rem',
+                    wordBreak: 'break-all'
+                  }}>
+                    BIN: {allValues.BIN}
+                  </Typography>
                 </Box>
               </Grid>
               <Grid item xs={6} md={3}>
-                <Box sx={{ p: 1, bgcolor: base === 'OCT' ? 'primary.light' : 'background.default', borderRadius: 1 }}>
-                  <Typography variant="caption">OCT: {allValues.OCT}</Typography>
+                <Box sx={{ 
+                  p: isSmallScreen ? 0.5 : 1, 
+                  bgcolor: base === 'OCT' ? 'primary.light' : 'background.default', 
+                  borderRadius: 1 
+                }}>
+                  <Typography variant={isSmallScreen ? "caption" : "body2"} sx={{ 
+                    fontSize: isSmallScreen ? '0.7rem' : '0.8rem',
+                    wordBreak: 'break-all'
+                  }}>
+                    OCT: {allValues.OCT}
+                  </Typography>
                 </Box>
               </Grid>
               <Grid item xs={6} md={3}>
-                <Box sx={{ p: 1, bgcolor: base === 'DEC' ? 'primary.light' : 'background.default', borderRadius: 1 }}>
-                  <Typography variant="caption">DEC: {allValues.DEC}</Typography>
+                <Box sx={{ 
+                  p: isSmallScreen ? 0.5 : 1, 
+                  bgcolor: base === 'DEC' ? 'primary.light' : 'background.default', 
+                  borderRadius: 1 
+                }}>
+                  <Typography variant={isSmallScreen ? "caption" : "body2"} sx={{ 
+                    fontSize: isSmallScreen ? '0.7rem' : '0.8rem',
+                    wordBreak: 'break-all'
+                  }}>
+                    DEC: {allValues.DEC}
+                  </Typography>
                 </Box>
               </Grid>
               <Grid item xs={6} md={3}>
-                <Box sx={{ p: 1, bgcolor: base === 'HEX' ? 'primary.light' : 'background.default', borderRadius: 1 }}>
-                  <Typography variant="caption">HEX: {allValues.HEX}</Typography>
+                <Box sx={{ 
+                  p: isSmallScreen ? 0.5 : 1, 
+                  bgcolor: base === 'HEX' ? 'primary.light' : 'background.default', 
+                  borderRadius: 1 
+                }}>
+                  <Typography variant={isSmallScreen ? "caption" : "body2"} sx={{ 
+                    fontSize: isSmallScreen ? '0.7rem' : '0.8rem',
+                    wordBreak: 'break-all'
+                  }}>
+                    HEX: {allValues.HEX}
+                  </Typography>
                 </Box>
               </Grid>
             </Grid>
 
-            <Grid container spacing={1}>
+            <Grid container spacing={isSmallScreen ? 0.5 : 1}>
               {digitButtons.map((row, rowIndex) => (
                 row.map((btn, colIndex) => (
                   <Grid 
@@ -304,8 +351,9 @@ export default function ProgrammerCalculator() {
                       onClick={btn.action}
                       disabled={btn.disabled}
                       sx={{ 
-                        minHeight: 48,
-                        fontSize: '1rem'
+                        minHeight: isSmallScreen ? 44 : 48,
+                        fontSize: isSmallScreen ? '0.9rem' : '1rem',
+                        p: isSmallScreen ? 0.5 : 1
                       }}
                     >
                       {btn.text}
@@ -318,8 +366,8 @@ export default function ProgrammerCalculator() {
         </Grid>
 
         <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
+          <Paper sx={{ p: isSmallScreen ? 1.5 : 2 }}>
+            <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
               计算历史
             </Typography>
             {history.length === 0 ? (
@@ -327,7 +375,7 @@ export default function ProgrammerCalculator() {
                 暂无计算记录
               </Typography>
             ) : (
-              <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+              <Box sx={{ maxHeight: isMobile ? 150 : 200, overflow: 'auto' }}>
                 {history.map((entry, index) => (
                   <Typography
                     key={index}
@@ -335,8 +383,10 @@ export default function ProgrammerCalculator() {
                     sx={{
                       fontFamily: 'monospace',
                       py: 0.5,
+                      fontSize: isSmallScreen ? '0.8rem' : '0.9rem',
                       borderBottom: index < history.length - 1 ? '1px solid' : 'none',
-                      borderColor: 'divider'
+                      borderColor: 'divider',
+                      wordBreak: 'break-all'
                     }}
                   >
                     {entry}
@@ -352,6 +402,7 @@ export default function ProgrammerCalculator() {
                   localStorage.removeItem('programmerCalculatorHistory');
                 }}
                 sx={{ mt: 1 }}
+                fullWidth={isMobile}
               >
                 清除历史
               </Button>

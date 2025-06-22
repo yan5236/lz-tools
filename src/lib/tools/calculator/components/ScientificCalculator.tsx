@@ -6,19 +6,24 @@ import {
   Grid,
   Paper,
   Typography,
+  useTheme,
+  useMediaQuery,
   FormControlLabel,
-  Switch,
-  useTheme
+  Switch
 } from '@mui/material';
 
 export default function ScientificCalculator() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const [display, setDisplay] = useState('0');
   const [expression, setExpression] = useState('');
   const [previousValue, setPreviousValue] = useState<number | null>(null);
   const [operation, setOperation] = useState<string | null>(null);
   const [waitingForNewValue, setWaitingForNewValue] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
-  const [isDegree, setIsDegree] = useState(true); // true for degrees, false for radians
+  const [isDegree, setIsDegree] = useState(true);
   const [memory, setMemory] = useState(0);
 
   // 从localStorage加载历史记录
@@ -42,15 +47,6 @@ export default function ScientificCalculator() {
       console.error('保存计算历史失败:', error);
     }
   }, []);
-
-  // 添加历史记录的统一函数
-  const addToHistory = useCallback((entry: string) => {
-    const newHistory = [entry, ...history.slice(0, 9)];
-    setHistory(newHistory);
-    saveHistoryToLocal(newHistory);
-  }, [history, saveHistoryToLocal]);
-
-  const theme = useTheme();
 
   const inputNumber = useCallback((num: string) => {
     if (waitingForNewValue) {
@@ -100,8 +96,33 @@ export default function ScientificCalculator() {
     setWaitingForNewValue(false);
   }, []);
 
-  const toRadians = (degrees: number) => degrees * (Math.PI / 180);
-  const toDegrees = (radians: number) => radians * (180 / Math.PI);
+  const clearEntry = useCallback(() => {
+    setDisplay('0');
+    if (operation && previousValue !== null) {
+      setExpression(`${previousValue} ${operation} 0`);
+    } else {
+      setExpression('0');
+    }
+  }, [operation, previousValue]);
+
+  const backspace = useCallback(() => {
+    if (display.length > 1) {
+      const newDisplay = display.slice(0, -1);
+      setDisplay(newDisplay);
+      if (operation && previousValue !== null) {
+        setExpression(`${previousValue} ${operation} ${newDisplay}`);
+      } else {
+        setExpression(newDisplay);
+      }
+    } else {
+      setDisplay('0');
+      if (operation && previousValue !== null) {
+        setExpression(`${previousValue} ${operation} 0`);
+      } else {
+        setExpression('0');
+      }
+    }
+  }, [display, operation, previousValue]);
 
   const performOperation = useCallback((nextOperation: string) => {
     const inputValue = parseFloat(display);
@@ -129,128 +150,237 @@ export default function ScientificCalculator() {
         case '^':
           result = Math.pow(currentValue, inputValue);
           break;
-        case 'log':
-          result = Math.log10(inputValue);
-          break;
-        case 'ln':
-          result = Math.log(inputValue);
-          break;
         default:
           return;
       }
 
       const historyEntry = `${currentValue} ${operation} ${inputValue} = ${result}`;
-      addToHistory(historyEntry);
+      const newHistory = [historyEntry, ...history.slice(0, 9)];
+      setHistory(newHistory);
+      saveHistoryToLocal(newHistory);
 
       setDisplay(String(result));
       setExpression(`${result} ${nextOperation} `);
       setPreviousValue(result);
     } else {
-      // 如果没有之前的运算，直接设置表达式
       setExpression(`${inputValue} ${nextOperation} `);
       setPreviousValue(inputValue);
     }
 
     setWaitingForNewValue(true);
     setOperation(nextOperation);
-  }, [display, previousValue, operation]);
+  }, [display, previousValue, operation, history, saveHistoryToLocal]);
 
   const calculate = useCallback(() => {
-    performOperation('=');
-    setOperation(null);
-    setPreviousValue(null);
-    setWaitingForNewValue(true);
-  }, [performOperation]);
+    if (operation && previousValue !== null) {
+      const inputValue = parseFloat(display);
+      const currentValue = previousValue;
+      let result: number;
 
-  // 三角函数
+      switch (operation) {
+        case '+':
+          result = currentValue + inputValue;
+          break;
+        case '-':
+          result = currentValue - inputValue;
+          break;
+        case '×':
+          result = currentValue * inputValue;
+          break;
+        case '÷':
+          result = inputValue !== 0 ? currentValue / inputValue : 0;
+          break;
+        case '^':
+          result = Math.pow(currentValue, inputValue);
+          break;
+        default:
+          return;
+      }
+
+      const fullExpression = `${currentValue} ${operation} ${inputValue} = ${result}`;
+      const newHistory = [fullExpression, ...history.slice(0, 9)];
+      setHistory(newHistory);
+      saveHistoryToLocal(newHistory);
+      
+      setDisplay(String(result));
+      setExpression(fullExpression);
+      setPreviousValue(null);
+      setOperation(null);
+      setWaitingForNewValue(true);
+    }
+  }, [display, previousValue, operation, history, saveHistoryToLocal]);
+
+  // 角度转换函数
+  const toRadians = (degrees: number) => degrees * (Math.PI / 180);
+  const toDegrees = (radians: number) => radians * (180 / Math.PI);
+
+  // 科学函数
   const sin = useCallback(() => {
     const value = parseFloat(display);
     const angle = isDegree ? toRadians(value) : value;
     const result = Math.sin(angle);
-    const sinExpression = `sin(${value}${isDegree ? '°' : ' rad'}) = ${result}`;
+    const sinExpression = `sin(${value}${isDegree ? '°' : ''}) = ${result}`;
     
     setDisplay(String(result));
     setExpression(sinExpression);
-    addToHistory(sinExpression);
+    const newHistory = [sinExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
     
-    // 重置运算状态
     setPreviousValue(null);
     setOperation(null);
     setWaitingForNewValue(true);
-  }, [display, isDegree]);
+  }, [display, isDegree, history, saveHistoryToLocal]);
 
   const cos = useCallback(() => {
     const value = parseFloat(display);
     const angle = isDegree ? toRadians(value) : value;
     const result = Math.cos(angle);
+    const cosExpression = `cos(${value}${isDegree ? '°' : ''}) = ${result}`;
+    
     setDisplay(String(result));
-    addToHistory(`cos(${value}${isDegree ? '°' : ' rad'}) = ${result}`);
-  }, [display, isDegree]);
+    setExpression(cosExpression);
+    const newHistory = [cosExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, isDegree, history, saveHistoryToLocal]);
 
   const tan = useCallback(() => {
     const value = parseFloat(display);
     const angle = isDegree ? toRadians(value) : value;
     const result = Math.tan(angle);
+    const tanExpression = `tan(${value}${isDegree ? '°' : ''}) = ${result}`;
+    
     setDisplay(String(result));
-    addToHistory(`tan(${value}${isDegree ? '°' : ' rad'}) = ${result}`);
-  }, [display, isDegree]);
+    setExpression(tanExpression);
+    const newHistory = [tanExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, isDegree, history, saveHistoryToLocal]);
 
-  // 反三角函数
   const asin = useCallback(() => {
     const value = parseFloat(display);
     const result = Math.asin(value);
-    const displayResult = isDegree ? toDegrees(result) : result;
-    setDisplay(String(displayResult));
-    addToHistory(`asin(${value}) = ${displayResult}${isDegree ? '°' : ' rad'}`);
-  }, [display, isDegree]);
+    const finalResult = isDegree ? toDegrees(result) : result;
+    const asinExpression = `asin(${value}) = ${finalResult}${isDegree ? '°' : ''}`;
+    
+    setDisplay(String(finalResult));
+    setExpression(asinExpression);
+    const newHistory = [asinExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, isDegree, history, saveHistoryToLocal]);
 
   const acos = useCallback(() => {
     const value = parseFloat(display);
     const result = Math.acos(value);
-    const displayResult = isDegree ? toDegrees(result) : result;
-    setDisplay(String(displayResult));
-    addToHistory(`acos(${value}) = ${displayResult}${isDegree ? '°' : ' rad'}`);
-  }, [display, isDegree]);
+    const finalResult = isDegree ? toDegrees(result) : result;
+    const acosExpression = `acos(${value}) = ${finalResult}${isDegree ? '°' : ''}`;
+    
+    setDisplay(String(finalResult));
+    setExpression(acosExpression);
+    const newHistory = [acosExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, isDegree, history, saveHistoryToLocal]);
 
   const atan = useCallback(() => {
     const value = parseFloat(display);
     const result = Math.atan(value);
-    const displayResult = isDegree ? toDegrees(result) : result;
-    setDisplay(String(displayResult));
-    addToHistory(`atan(${value}) = ${displayResult}${isDegree ? '°' : ' rad'}`);
-  }, [display, isDegree]);
+    const finalResult = isDegree ? toDegrees(result) : result;
+    const atanExpression = `atan(${value}) = ${finalResult}${isDegree ? '°' : ''}`;
+    
+    setDisplay(String(finalResult));
+    setExpression(atanExpression);
+    const newHistory = [atanExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, isDegree, history, saveHistoryToLocal]);
 
-  // 对数函数
   const log10 = useCallback(() => {
     const value = parseFloat(display);
     const result = Math.log10(value);
+    const logExpression = `log(${value}) = ${result}`;
+    
     setDisplay(String(result));
-    addToHistory(`log(${value}) = ${result}`);
-  }, [display]);
+    setExpression(logExpression);
+    const newHistory = [logExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, history, saveHistoryToLocal]);
 
   const ln = useCallback(() => {
     const value = parseFloat(display);
     const result = Math.log(value);
+    const lnExpression = `ln(${value}) = ${result}`;
+    
     setDisplay(String(result));
-    addToHistory(`ln(${value}) = ${result}`);
-  }, [display]);
+    setExpression(lnExpression);
+    const newHistory = [lnExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, history, saveHistoryToLocal]);
 
-  // 指数函数
   const exp = useCallback(() => {
     const value = parseFloat(display);
     const result = Math.exp(value);
+    const expExpression = `e^${value} = ${result}`;
+    
     setDisplay(String(result));
-    addToHistory(`e^${value} = ${result}`);
-  }, [display]);
+    setExpression(expExpression);
+    const newHistory = [expExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, history, saveHistoryToLocal]);
 
   const power10 = useCallback(() => {
     const value = parseFloat(display);
     const result = Math.pow(10, value);
+    const power10Expression = `10^${value} = ${result}`;
+    
     setDisplay(String(result));
-    addToHistory(`10^${value} = ${result}`);
-  }, [display]);
+    setExpression(power10Expression);
+    const newHistory = [power10Expression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, history, saveHistoryToLocal]);
 
-  // 其他函数
   const sqrt = useCallback(() => {
     const value = parseFloat(display);
     const result = Math.sqrt(value);
@@ -258,73 +388,89 @@ export default function ScientificCalculator() {
     
     setDisplay(String(result));
     setExpression(sqrtExpression);
-    addToHistory(sqrtExpression);
+    const newHistory = [sqrtExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
     
-    // 重置运算状态
     setPreviousValue(null);
     setOperation(null);
     setWaitingForNewValue(true);
-  }, [display]);
+  }, [display, history, saveHistoryToLocal]);
 
   const square = useCallback(() => {
     const value = parseFloat(display);
     const result = value * value;
+    const squareExpression = `${value}² = ${result}`;
+    
     setDisplay(String(result));
-    addToHistory(`${value}² = ${result}`);
-  }, [display]);
+    setExpression(squareExpression);
+    const newHistory = [squareExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, history, saveHistoryToLocal]);
 
   const factorial = useCallback(() => {
-    const value = parseFloat(display);
-    if (value >= 0 && value <= 170 && Number.isInteger(value)) {
-      let result = 1;
-      for (let i = 2; i <= value; i++) {
-        result *= i;
-      }
-      setDisplay(String(result));
-      addToHistory(`${value}! = ${result}`);
+    const value = parseInt(display);
+    if (value < 0) return;
+    
+    let result = 1;
+    for (let i = 2; i <= value; i++) {
+      result *= i;
     }
-  }, [display]);
+    
+    const factorialExpression = `${value}! = ${result}`;
+    
+    setDisplay(String(result));
+    setExpression(factorialExpression);
+    const newHistory = [factorialExpression, ...history.slice(0, 9)];
+    setHistory(newHistory);
+    saveHistoryToLocal(newHistory);
+    
+    setPreviousValue(null);
+    setOperation(null);
+    setWaitingForNewValue(true);
+  }, [display, history, saveHistoryToLocal]);
 
-  const reciprocal = useCallback(() => {
-    const value = parseFloat(display);
-    if (value !== 0) {
-      const result = 1 / value;
-      setDisplay(String(result));
-      addToHistory(`1/${value} = ${result}`);
-    }
-  }, [display]);
-
-  // 内存操作
-  const memoryStore = useCallback(() => {
-    setMemory(parseFloat(display));
-  }, [display]);
-
-  const memoryRecall = useCallback(() => {
-    setDisplay(String(memory));
-  }, [memory]);
-
-  const memoryClear = useCallback(() => {
-    setMemory(0);
-  }, []);
-
-  const memoryAdd = useCallback(() => {
-    setMemory(prev => prev + parseFloat(display));
-  }, [display]);
-
-  // 常数
   const inputPi = useCallback(() => {
     setDisplay(String(Math.PI));
+    setExpression(String(Math.PI));
+    setWaitingForNewValue(true);
   }, []);
 
   const inputE = useCallback(() => {
     setDisplay(String(Math.E));
+    setExpression(String(Math.E));
+    setWaitingForNewValue(true);
   }, []);
+
+  // 内存函数
+  const memoryClear = useCallback(() => {
+    setMemory(0);
+  }, []);
+
+  const memoryRecall = useCallback(() => {
+    setDisplay(String(memory));
+    setExpression(String(memory));
+    setWaitingForNewValue(true);
+  }, [memory]);
+
+  const memoryStore = useCallback(() => {
+    setMemory(parseFloat(display));
+  }, [display]);
+
+  const memoryAdd = useCallback(() => {
+    setMemory(memory + parseFloat(display));
+  }, [memory, display]);
 
   const basicButtons = [
     [
       { text: 'C', action: clear, color: 'error' },
-      { text: '(', action: () => inputNumber('(') },
-      { text: ')', action: () => inputNumber(')') },
+      { text: 'CE', action: clearEntry, color: 'warning' },
+      { text: '⌫', action: backspace, color: 'warning' },
       { text: '÷', action: () => performOperation('÷'), color: 'primary' }
     ],
     [
@@ -386,11 +532,11 @@ export default function ScientificCalculator() {
   ];
 
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-      <Grid container spacing={2}>
+    <Box sx={{ maxWidth: isMobile ? '100%' : 800, mx: 'auto' }}>
+      <Grid container spacing={isSmallScreen ? 1 : 2}>
         {/* 计算器主体 */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
+          <Paper sx={{ p: isSmallScreen ? 1.5 : 2 }}>
             {/* 显示区域 */}
             <Box sx={{ mb: 2 }}>
               {/* 表达式显示 */}
@@ -401,7 +547,7 @@ export default function ScientificCalculator() {
                 InputProps={{
                   readOnly: true,
                   style: {
-                    fontSize: '1rem',
+                    fontSize: isSmallScreen ? '0.9rem' : '1rem',
                     textAlign: 'right',
                     fontFamily: 'monospace',
                     color: theme.palette.text.secondary
@@ -417,7 +563,7 @@ export default function ScientificCalculator() {
                 InputProps={{
                   readOnly: true,
                   style: {
-                    fontSize: '2rem',
+                    fontSize: isSmallScreen ? '1.5rem' : '2rem',
                     textAlign: 'right',
                     fontFamily: 'monospace',
                     fontWeight: 'bold'
@@ -427,7 +573,14 @@ export default function ScientificCalculator() {
             </Box>
 
             {/* 角度单位切换 */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              mb: 2,
+              flexDirection: isSmallScreen ? 'column' : 'row',
+              gap: isSmallScreen ? 1 : 0
+            }}>
               <FormControlLabel
                 control={
                   <Switch
@@ -442,13 +595,13 @@ export default function ScientificCalculator() {
               </Typography>
             </Box>
 
-            <Grid container spacing={2}>
+            <Grid container spacing={isSmallScreen ? 1 : 2}>
               {/* 科学函数按钮 */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>
+              <Grid item xs={12} md={isMobile ? 12 : 6}>
+                <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
                   科学函数
                 </Typography>
-                <Grid container spacing={1}>
+                <Grid container spacing={isSmallScreen ? 0.5 : 1}>
                   {scientificButtons.map((row, rowIndex) => (
                     row.map((btn, colIndex) => (
                       <Grid item xs={3} key={`sci-${rowIndex}-${colIndex}`}>
@@ -456,7 +609,11 @@ export default function ScientificCalculator() {
                           fullWidth
                           variant="outlined"
                           onClick={btn.action}
-                          sx={{ minHeight: 48, fontSize: '0.8rem' }}
+                          sx={{ 
+                            minHeight: isSmallScreen ? 36 : 48, 
+                            fontSize: isSmallScreen ? '0.7rem' : '0.8rem',
+                            p: isSmallScreen ? 0.25 : 0.5
+                          }}
                         >
                           {btn.text}
                         </Button>
@@ -467,11 +624,11 @@ export default function ScientificCalculator() {
               </Grid>
 
               {/* 基本计算按钮 */}
-              <Grid item xs={12} md={6}>
-                <Typography variant="h6" gutterBottom>
+              <Grid item xs={12} md={isMobile ? 12 : 6}>
+                <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
                   基本运算
                 </Typography>
-                <Grid container spacing={1}>
+                <Grid container spacing={isSmallScreen ? 0.5 : 1}>
                   {basicButtons.map((row, rowIndex) => (
                     row.map((btn, colIndex) => (
                       <Grid 
@@ -485,9 +642,10 @@ export default function ScientificCalculator() {
                           color={btn.color as any || 'inherit'}
                           onClick={btn.action}
                           sx={{ 
-                            minHeight: 56,
-                            fontSize: '1.1rem',
-                            fontWeight: 'bold'
+                            minHeight: isSmallScreen ? 48 : 56,
+                            fontSize: isSmallScreen ? '1rem' : '1.1rem',
+                            fontWeight: 'bold',
+                            p: isSmallScreen ? 0.5 : 1
                           }}
                         >
                           {btn.text}
@@ -503,8 +661,8 @@ export default function ScientificCalculator() {
 
         {/* 历史记录 */}
         <Grid item xs={12}>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="h6" gutterBottom>
+          <Paper sx={{ p: isSmallScreen ? 1.5 : 2 }}>
+            <Typography variant={isSmallScreen ? "subtitle1" : "h6"} gutterBottom>
               计算历史
             </Typography>
             {history.length === 0 ? (
@@ -512,7 +670,7 @@ export default function ScientificCalculator() {
                 暂无计算记录
               </Typography>
             ) : (
-              <Box sx={{ maxHeight: 200, overflow: 'auto' }}>
+              <Box sx={{ maxHeight: isMobile ? 150 : 200, overflow: 'auto' }}>
                 <Grid container spacing={1}>
                   {history.map((entry, index) => (
                     <Grid item xs={12} sm={6} md={4} key={index}>
@@ -523,7 +681,8 @@ export default function ScientificCalculator() {
                           p: 1,
                           backgroundColor: 'background.default',
                           borderRadius: 1,
-                          fontSize: '0.8rem'
+                          fontSize: isSmallScreen ? '0.7rem' : '0.8rem',
+                          wordBreak: 'break-all'
                         }}
                       >
                         {entry}
@@ -541,6 +700,7 @@ export default function ScientificCalculator() {
                   localStorage.removeItem('scientificCalculatorHistory');
                 }}
                 sx={{ mt: 1 }}
+                fullWidth={isMobile}
               >
                 清除历史
               </Button>
