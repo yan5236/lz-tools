@@ -53,52 +53,49 @@ const formatFileSize = (bytes: number): string => {
 
 // 计算base64数据URL的字节大小
 const calculateBase64Size = (dataURL: string): number => {
-  // 从dataURL中获取纯base64字符串（移除前缀）
   const base64 = dataURL.split(',')[1];
   if (!base64) return 0;
-  
-  // 计算base64字符串解码后的字节大小
-  // 每4个base64字符表示3个字节的数据
   const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
   return Math.floor((base64.length * 3) / 4) - padding;
 };
 
 export default function ImageCompress() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [currentFileIndex, setCurrentFileIndex] = useState<number>(-1);
+  
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [compressedUrl, setCompressedUrl] = useState<string | null>(null);
-  const [quality, setQuality] = useState<number>(80);
-  const [maxWidth, setMaxWidth] = useState<number>(1920);
-  const [maxHeight, setMaxHeight] = useState<number>(1080);
-  const [loading, setLoading] = useState<boolean>(false);
   const [originalSize, setOriginalSize] = useState<number>(0);
   const [compressedSize, setCompressedSize] = useState<number>(0);
   const [compressionRatio, setCompressionRatio] = useState<number>(0);
+
+  const [quality, setQuality] = useState<number>(80);
+  const [maxWidth, setMaxWidth] = useState<number>(1920);
+  const [maxHeight, setMaxHeight] = useState<number>(1080);
   const [format, setFormat] = useState<string>('image/jpeg');
+  
+  const [loading, setLoading] = useState<boolean>(false);
+  const [batchMode, setBatchMode] = useState<boolean>(false);
+  const [batchProcessing, setBatchProcessing] = useState<boolean>(false);
+  const [batchProgress, setBatchProgress] = useState<number>(0);
+  const [batchTotal, setBatchTotal] = useState<number>(0);
+  const [processingComplete, setProcessingComplete] = useState<boolean>(false);
+  const [processedFiles, setProcessedFiles] = useState<{name: string, originalSize: number, compressedSize: number, compressionRatio: number, fileIndex: number, compressedUrl?: string}[]>([]);
+  
+  const [viewMode, setViewMode] = useState<'original' | 'compressed'>('original');
   const [snackbarOpen, setSnackbarOpen] = useState<boolean>(false);
   const [snackbarMessage, setSnackbarMessage] = useState<string>('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error' | 'info' | 'warning'>('success');
-  const [originalImageBlob, setOriginalImageBlob] = useState<Blob | null>(null);
-  const [files, setFiles] = useState<File[]>([]);
-  const [currentFileIndex, setCurrentFileIndex] = useState<number>(-1);
-  const [batchMode, setBatchMode] = useState<boolean>(false);
-  const [batchProgress, setBatchProgress] = useState<number>(0);
-  const [batchTotal, setBatchTotal] = useState<number>(0);
-  const [processedFiles, setProcessedFiles] = useState<{name: string, originalSize: number, compressedSize: number, compressionRatio: number, fileIndex: number, compressedUrl?: string}[]>([]);
-  const [viewMode, setViewMode] = useState<'original' | 'compressed'>('original');
-  const [batchProcessing, setBatchProcessing] = useState<boolean>(false);
-  const [processingComplete, setProcessingComplete] = useState<boolean>(false);
-  const [processingTimeout, setProcessingTimeout] = useState<NodeJS.Timeout | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const selectedFile = files[currentFileIndex] || null;
 
   // 处理文件选择
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
       const fileList = Array.from(event.target.files);
-      
-      // 检查所有文件类型
       const validFiles = fileList.filter(file => file.type.match('image.*'));
       
       if (validFiles.length === 0) {
@@ -114,276 +111,108 @@ export default function ImageCompress() {
         setSnackbarOpen(true);
       }
       
+      handleClear(true); // Soft clear, keep settings
+
       setFiles(validFiles);
       setBatchTotal(validFiles.length);
+      setCurrentFileIndex(0);
       
       if (validFiles.length > 1) {
-        // 批量模式
         setBatchMode(true);
-        setCurrentFileIndex(0);
-        setProcessedFiles([]);
-        
-        // 加载第一个文件预览
-        loadFilePreview(validFiles[0]);
       } else {
-        // 单文件模式
         setBatchMode(false);
-        setCurrentFileIndex(-1);
-        loadFilePreview(validFiles[0]);
       }
+      
+      loadFilePreview(validFiles[0]);
     }
   };
 
   // 加载文件预览
   const loadFilePreview = (file: File) => {
-    setSelectedFile(file);
     setOriginalSize(file.size);
-    setOriginalImageBlob(file);
     setCompressedUrl(null);
     setCompressedSize(0);
     setCompressionRatio(0);
+    setViewMode('original');
     
-    // 创建预览
     const reader = new FileReader();
     reader.onload = () => {
       setPreviewUrl(reader.result as string);
     };
     reader.onerror = () => {
       console.error('无法读取文件:', file.name);
-      
-      // 如果在批处理模式下，跳过这个文件继续处理下一个
-      if (batchProcessing && currentFileIndex < files.length - 1) {
-        moveToNextFile();
-      } else if (batchProcessing) {
-        finishBatchProcessing();
+      if (batchProcessing) {
+        processNextFile(currentFileIndex);
       }
     };
     reader.readAsDataURL(file);
   };
 
-  // 移动到下一个文件
-  const moveToNextFile = () => {
-    if (currentFileIndex >= files.length - 1) {
-      finishBatchProcessing();
-      return;
+  // 移动到下一个文件 (在批量处理链中使用)
+  const processNextFile = (currentIndex: number) => {
+    const nextIndex = currentIndex + 1;
+    if (nextIndex >= files.length) {
+        finishBatchProcessing();
+        return;
     }
-    
-    const nextIndex = currentFileIndex + 1;
-    setCurrentFileIndex(nextIndex);
-    setBatchProgress(prev => prev + 1);
-    
-    // 清除之前的超时
-    if (processingTimeout) {
-      clearTimeout(processingTimeout);
-    }
-    
-    // 使用setTimeout避免状态更新问题
-    const timeout = setTimeout(() => {
-      if (nextIndex < files.length) {
-        loadFilePreview(files[nextIndex]);
-        // 设置一个超时保护，如果10秒后还没处理完，就继续下一个
-        const protectionTimeout = setTimeout(() => {
-          if (batchProcessing) {
-            console.log('处理超时，跳到下一个文件');
-            moveToNextFile();
-          }
-        }, 10000);
-        setProcessingTimeout(protectionTimeout);
-      }
-    }, 300);
+    // 使用setTimeout确保状态更新和UI响应
+    setTimeout(() => {
+        processFileAtIndex(nextIndex);
+    }, 50); // 短暂延迟以避免UI卡顿
   };
 
   // 完成批处理
   const finishBatchProcessing = () => {
-    console.log('开始完成批处理流程');
-    
-    // 捕获当前处理文件数组的引用
-    setProcessedFiles(currentProcessedFiles => {
-      const processedCount = currentProcessedFiles.length;
-      console.log('批量处理完成，当前共处理', processedCount, '个文件');
-      
-      // 使用当前处理文件数组更新UI
-      setBatchProcessing(false);
-      setProcessingComplete(true);
-      setLoading(false);
-      setSnackbarSeverity('success');
-      setSnackbarMessage(`批量处理完成! 共处理 ${processedCount} 个文件`);
-      setSnackbarOpen(true);
-      
-      // 返回原数组，不做修改
-      return currentProcessedFiles;
-    });
-    
-    // 清除超时
-    if (processingTimeout) {
-      clearTimeout(processingTimeout);
-      setProcessingTimeout(null);
-    }
+    setBatchProcessing(false);
+    setProcessingComplete(true);
+    setLoading(false);
+    setSnackbarSeverity('success');
+    setSnackbarMessage(`批量处理完成! 共处理 ${processedFiles.length} 个文件`);
+    setSnackbarOpen(true);
   };
 
-  // 单张图片压缩
-  const handleSingleCompress = () => {
+  // 统一的压缩核心函数
+  const runCompression = () => {
     if (!selectedFile || !previewUrl) {
       setSnackbarSeverity('error');
       setSnackbarMessage('请先选择图片');
       setSnackbarOpen(true);
       return;
     }
-    handleCompress();
-  };
 
-  // 处理压缩质量滑块变化
-  const handleQualityChange = (_event: Event, newValue: number | number[]) => {
-    setQuality(newValue as number);
-  };
-
-  // 处理最大宽度输入变化
-  const handleMaxWidthChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(event.target.value);
-    if (!isNaN(value) && value > 0) {
-      setMaxWidth(value);
-    }
-  };
-
-  // 处理最大高度输入变化
-  const handleMaxHeightChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(event.target.value);
-    if (!isNaN(value) && value > 0) {
-      setMaxHeight(value);
-    }
-  };
-
-  // 处理格式变化
-  const handleFormatChange = (event: any) => {
-    setFormat(event.target.value);
-  };
-
-  // 全部压缩
-  const handleCompressAll = () => {
-    if (files.length === 0) return;
-    
-    console.log('开始批量处理，重置状态');
-    
-    // 复位状态 - 重要：先设置其他状态，再设置处理文件数组
-    setBatchProcessing(true);
-    setProcessingComplete(false);
-    setCurrentFileIndex(0);
-    setBatchProgress(0);
-    
-    // 清空处理文件数组 - 使用单独的setState以确保状态更新
-    setProcessedFiles([]);
-    
-    // 清除之前的超时
-    if (processingTimeout) {
-      clearTimeout(processingTimeout);
-      setProcessingTimeout(null);
+    if (!batchProcessing) { // 只有在非自动批量处理时才显示独立加载状态
+        setLoading(true);
     }
     
-    // 给状态一些时间更新
-    setTimeout(() => {
-      console.log('开始批量处理，共', files.length, '个文件');
-      processFileAtIndex(0);
-    }, 100);
-  };
-  
-  // 处理指定索引的文件
-  const processFileAtIndex = (index: number) => {
-    if (index >= files.length) {
-      console.log("所有文件处理完毕，调用finishBatchProcessing");
-      finishBatchProcessing();
-      return;
-    }
-    
-    console.log(`处理第 ${index + 1}/${files.length} 个文件：${files[index].name}`);
-    setCurrentFileIndex(index);
-    setBatchProgress(index);
-    
-    // 直接处理文件，不进行异步预览加载
-    const file = files[index];
-    setSelectedFile(file);
-    setOriginalSize(file.size);
-    
-    // 创建文件的数据URL
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setPreviewUrl(dataUrl);
-      
-      // 预览加载完成后直接开始压缩
-      console.log('文件预览已加载，开始压缩');
-      compressImage(dataUrl, file, index);
-    };
-    reader.onerror = () => {
-      console.error('无法读取文件:', file.name);
-      processNextFile(index);
-    };
-    
-    try {
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('读取文件时出错:', error);
-      processNextFile(index);
-    }
-  };
-  
-  // 处理下一个文件
-  const processNextFile = (currentIndex: number) => {
-    // 更新进度
-    setBatchProgress(prev => currentIndex + 1);
-    // 直接处理下一个文件
-    processFileAtIndex(currentIndex + 1);
-  };
-  
-  // 压缩图片核心逻辑
-  const compressImage = (imageUrl: string, file: File, fileIndex: number) => {
-    console.log(`开始压缩文件[${fileIndex}]: ${file.name}`);
-    setLoading(true);
-    
-    // 创建图像对象
     const img = new Image();
-    
-    // 图片加载成功处理
+    img.src = previewUrl;
+
     img.onload = () => {
-      console.log(`文件[${fileIndex}] ${file.name} 加载成功，尺寸:`, img.width, 'x', img.height);
-      
       try {
-        // 检查是否需要调整大小
         let width = img.width;
         let height = img.height;
         let needResize = false;
-        
+
         if (width > maxWidth) {
           height = Math.floor(height * (maxWidth / width));
           width = maxWidth;
           needResize = true;
         }
-        
+
         if (height > maxHeight) {
           width = Math.floor(width * (maxHeight / height));
           height = maxHeight;
           needResize = true;
         }
-        
-        // 创建canvas元素
+
         const canvas = canvasRef.current;
-        if (!canvas) {
-          console.error(`文件[${fileIndex}] Canvas元素不存在`);
-          processNextFile(fileIndex);
-          return;
-        }
+        if (!canvas) throw new Error('Canvas 元素不存在');
         
         canvas.width = width;
         canvas.height = height;
-        
-        // 绘制图像到canvas
         const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          console.error(`文件[${fileIndex}] 无法获取Canvas上下文`);
-          processNextFile(fileIndex);
-          return;
-        }
-        
-        // 对于PNG和WebP，使用透明背景；对于JPEG，使用白色背景
+        if (!ctx) throw new Error('无法获取 Canvas 上下文');
+
         if (format === 'image/jpeg') {
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(0, 0, width, height);
@@ -392,239 +221,43 @@ export default function ImageCompress() {
         }
         
         ctx.drawImage(img, 0, 0, width, height);
-        
-        // 确定实际使用的压缩质量
-        // PNG格式使用lossless压缩，所以quality参数不影响PNG
         const actualQuality = format === 'image/png' ? 1.0 : quality / 100;
-        
-        // 将canvas转换为压缩后的数据URL
         const compressedDataUrl = canvas.toDataURL(format, actualQuality);
-        
-        // 使用calculateBase64Size函数计算压缩后的大小
         const compSize = calculateBase64Size(compressedDataUrl);
-        console.log('压缩完成，原始大小:', formatFileSize(originalSize), '压缩后:', formatFileSize(compSize));
-        
-        // 比较压缩前后的大小，如果压缩后更大，则保留原始图片
-        if (compSize >= originalSize && !needResize && format === file.type) {
-          // 压缩后反而变大，使用原始图片
-          setCompressedUrl(imageUrl);
-          setCompressedSize(originalSize);
-          setCompressionRatio(0);
-          setSnackbarSeverity('info');
-          setSnackbarMessage('图片已经是最优化的，无需进一步压缩');
-        } else if (compSize > originalSize) {
-          // 如果仍然变大，但格式或尺寸发生了变化，告知用户
-          setCompressedUrl(compressedDataUrl);
-          setCompressedSize(compSize);
-          setCompressionRatio(Math.round((compSize / originalSize - 1) * 100) * -1);
-          setSnackbarSeverity('warning');
-          setSnackbarMessage('调整后图片大小增加，请考虑使用不同的设置');
-        } else {
-          // 正常情况，压缩成功且变小了
-          setCompressedUrl(compressedDataUrl);
-          setCompressedSize(compSize);
-          setCompressionRatio(Math.round((1 - compSize / originalSize) * 100));
-          setSnackbarSeverity('success');
-          setSnackbarMessage('图片压缩成功!');
-        }
-        
-        // 切换到压缩图像预览
-        setViewMode('compressed');
-        
-        // 如果是批量模式，保存处理结果并处理下一个
-        if (batchMode && currentFileIndex >= 0) {
-          const processedFile = {
-            name: file.name,
-            originalSize: originalSize,
-            compressedSize: compSize,
-            compressionRatio: compSize < originalSize ? 
-              Math.round((1 - compSize / originalSize) * 100) : 
-              Math.round((compSize / originalSize - 1) * 100) * -1,
-            fileIndex: currentFileIndex,
-            compressedUrl: compressedDataUrl
-          };
-          
-          // 更新或添加处理结果
-          setProcessedFiles(prev => {
-            console.log(`添加/更新处理文件[${fileIndex}], 当前列表长度:`, prev.length);
-            const existingIndex = prev.findIndex(f => f.fileIndex === fileIndex);
-            if (existingIndex >= 0) {
-              const updated = [...prev];
-              updated[existingIndex] = processedFile;
-              return updated;
-            } else {
-              return [...prev, processedFile];
-            }
-          });
-          
-          // 如果是自动批处理模式，继续处理下一个文件
-          if (batchProcessing) {
-            moveToNextFile();
-          } else {
-            setLoading(false);
-            setSnackbarOpen(true);
-          }
-        } else {
-          setLoading(false);
-          setSnackbarOpen(true);
-        }
-      } catch (error) {
-        console.error(`文件[${fileIndex}] ${file.name} 处理过程中出错:`, error);
-        processNextFile(fileIndex);
-      }
-    };
-    
-    // 图片加载失败处理
-    img.onerror = (error) => {
-      console.error(`文件[${fileIndex}] ${file.name} 加载失败:`, error);
-      processNextFile(fileIndex);
-    };
-    
-    // 设置图片加载超时处理
-    const imgLoadTimeout = setTimeout(() => {
-      if (!img.complete) {
-        console.log(`文件[${fileIndex}] ${file.name} 加载超时`);
-        img.src = ''; // 中止当前加载
-        processNextFile(fileIndex);
-      }
-    }, 5000); // 5秒超时
-    
-    // 修复类型错误，确保imageUrl不为空
-    if (imageUrl) {
-      img.src = imageUrl;
-    } else {
-      console.error(`文件[${fileIndex}] 没有有效的图像URL`);
-      processNextFile(fileIndex);
-      return;
-    }
-    
-    // 如果图片已经加载完成，立即清除超时
-    if (img.complete) {
-      clearTimeout(imgLoadTimeout);
-    }
-  };
 
-  // 处理单个图片压缩
-  const handleCompress = () => {
-    if (!selectedFile || !previewUrl) {
-      setSnackbarSeverity('error');
-      setSnackbarMessage('请先选择一个图片文件');
-      setSnackbarOpen(true);
-      return;
-    }
-    
-    setLoading(true);
-    
-    // 创建图片对象
-    const img = new Image();
-    
-    img.onload = () => {
-      // 检查是否需要调整大小
-      let width = img.width;
-      let height = img.height;
-      let needResize = false;
-      
-      if (width > maxWidth) {
-        height = Math.floor(height * (maxWidth / width));
-        width = maxWidth;
-        needResize = true;
-      }
-      
-      if (height > maxHeight) {
-        width = Math.floor(width * (maxHeight / height));
-        height = maxHeight;
-        needResize = true;
-      }
-      
-      // 创建canvas元素
-      const canvas = canvasRef.current;
-      if (!canvas) {
-        console.error('Canvas元素不存在');
-        setLoading(false);
-        setSnackbarSeverity('error');
-        setSnackbarMessage('图片压缩失败，无法创建画布');
-        setSnackbarOpen(true);
-        return;
-      }
-      
-      canvas.width = width;
-      canvas.height = height;
-      
-      // 获取2D绘图上下文
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        console.error('无法获取Canvas上下文');
-        setLoading(false);
-        setSnackbarSeverity('error');
-        setSnackbarMessage('图片压缩失败，浏览器不支持Canvas');
-        setSnackbarOpen(true);
-        return;
-      }
-      
-      // 对于PNG和WebP，使用透明背景；对于JPEG，使用白色背景
-      if (format === 'image/jpeg') {
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, width, height);
-      } else {
-        ctx.clearRect(0, 0, width, height);
-      }
-      
-      ctx.drawImage(img, 0, 0, width, height);
-      
-      // PNG格式使用lossless压缩，所以quality参数不影响PNG
-      const actualQuality = format === 'image/png' ? 1.0 : quality / 100;
-      
-      try {
-        // 将canvas转换为压缩后的数据URL
-        const compressedDataUrl = canvas.toDataURL(format, actualQuality);
-        console.log('Canvas已转换为数据URL');
-        
-        // 使用calculateBase64Size函数计算压缩后的大小
-        const compSize = calculateBase64Size(compressedDataUrl);
-        console.log('压缩完成，原始大小:', formatFileSize(originalSize), '压缩后:', formatFileSize(compSize));
-        
-        // 比较压缩前后的大小，如果压缩后更大，则保留原始图片
+        let snackbarMsg = '图片压缩成功!';
+        let snackbarSev: 'success' | 'info' | 'warning' = 'success';
+        let currentCompressedUrl = compressedDataUrl;
+        let currentCompressedSize = compSize;
+        let currentRatio = Math.round((1 - compSize / originalSize) * 100);
+
         if (compSize >= originalSize && !needResize && format === selectedFile.type) {
-          // 压缩后反而变大，使用原始图片
-          setCompressedUrl(previewUrl);
-          setCompressedSize(originalSize);
-          setCompressionRatio(0);
-          setSnackbarSeverity('info');
-          setSnackbarMessage('图片已经是最优化的，无需进一步压缩');
+          currentCompressedUrl = previewUrl;
+          currentCompressedSize = originalSize;
+          currentRatio = 0;
+          snackbarMsg = '图片已经是最优化的，无需进一步压缩';
+          snackbarSev = 'info';
         } else if (compSize > originalSize) {
-          // 如果仍然变大，但格式或尺寸发生了变化，告知用户
-          setCompressedUrl(compressedDataUrl);
-          setCompressedSize(compSize);
-          setCompressionRatio(Math.round((compSize / originalSize - 1) * 100) * -1);
-          setSnackbarSeverity('warning');
-          setSnackbarMessage('调整后图片大小增加，请考虑使用不同的设置');
-        } else {
-          // 正常情况，压缩成功且变小了
-          setCompressedUrl(compressedDataUrl);
-          setCompressedSize(compSize);
-          setCompressionRatio(Math.round((1 - compSize / originalSize) * 100));
-          setSnackbarSeverity('success');
-          setSnackbarMessage('图片压缩成功!');
+          currentRatio = Math.round((compSize / originalSize - 1) * 100) * -1;
+          snackbarMsg = '调整后图片大小增加，请考虑使用不同的设置';
+          snackbarSev = 'warning';
         }
-        
-        // 切换到压缩图像预览
+
+        setCompressedUrl(currentCompressedUrl);
+        setCompressedSize(currentCompressedSize);
+        setCompressionRatio(currentRatio);
         setViewMode('compressed');
-        
-        // 如果是批量模式，保存处理结果并处理下一个
-        if (batchMode && currentFileIndex >= 0) {
-          const processedFile = {
+
+        const processedFile = {
             name: selectedFile.name,
             originalSize: originalSize,
-            compressedSize: compSize,
-            compressionRatio: compSize < originalSize ? 
-              Math.round((1 - compSize / originalSize) * 100) : 
-              Math.round((compSize / originalSize - 1) * 100) * -1,
+            compressedSize: currentCompressedSize,
+            compressionRatio: currentRatio,
             fileIndex: currentFileIndex,
-            compressedUrl: compressedDataUrl
-          };
-          
-          // 更新或添加处理结果
-          setProcessedFiles(prev => {
+            compressedUrl: currentCompressedUrl
+        };
+
+        setProcessedFiles(prev => {
             const existingIndex = prev.findIndex(f => f.fileIndex === currentFileIndex);
             if (existingIndex >= 0) {
               const updated = [...prev];
@@ -633,48 +266,84 @@ export default function ImageCompress() {
             } else {
               return [...prev, processedFile];
             }
-          });
-          
-          // 如果是自动批处理模式，继续处理下一个文件
-          if (batchProcessing) {
-            moveToNextFile();
-          } else {
+        });
+        
+        if (!batchProcessing) {
             setLoading(false);
+            setSnackbarSeverity(snackbarSev);
+            setSnackbarMessage(snackbarMsg);
             setSnackbarOpen(true);
-          }
         } else {
-          setLoading(false);
-          setSnackbarOpen(true);
+            // *** 这是关键的修复点 ***
+            // 成功处理完一个文件后，调用 processNextFile 继续处理链条
+            processNextFile(currentFileIndex);
         }
+
       } catch (error) {
-        console.error('Canvas转换为数据URL时出错:', error);
+        console.error('压缩过程中发生错误:', error);
+        if (!batchProcessing) {
+            setLoading(false);
+            setSnackbarSeverity('error');
+            setSnackbarMessage('图片压缩过程中发生错误');
+            setSnackbarOpen(true);
+        } else {
+            processNextFile(currentFileIndex); // 出错了也要继续下一个
+        }
+      }
+    };
+
+    img.onerror = () => {
+      console.error('图片加载失败:', selectedFile.name);
+      if (!batchProcessing) {
         setLoading(false);
         setSnackbarSeverity('error');
-        setSnackbarMessage('图片压缩过程中发生错误');
+        setSnackbarMessage('图片加载失败');
         setSnackbarOpen(true);
-        
-        if (batchProcessing) {
-          moveToNextFile();
-        }
+      } else {
+        processNextFile(currentFileIndex); // 加载失败，继续下一个
       }
     };
-
-    img.onerror = (error) => {
-      console.error('图片加载失败:', error);
-      setLoading(false);
-      setSnackbarSeverity('error');
-      setSnackbarMessage('图片加载失败');
-      setSnackbarOpen(true);
-      
-      // 如果在批处理模式下，跳过这个文件继续处理下一个
-      if (batchProcessing) {
-        moveToNextFile();
-      }
-    };
-
-    img.src = previewUrl;
   };
 
+  // 全部压缩
+  const handleCompressAll = () => {
+    if (files.length === 0) return;
+    
+    setBatchProcessing(true);
+    setProcessingComplete(false);
+    setProcessedFiles([]);
+    setBatchProgress(0);
+    
+    // 从第一个文件开始处理
+    processFileAtIndex(0);
+  };
+  
+  // 处理指定索引的文件
+  const processFileAtIndex = (index: number) => {
+    setBatchProgress(index);
+    setCurrentFileIndex(index);
+    
+    const file = files[index];
+    const reader = new FileReader();
+    
+    reader.onload = () => {
+      setPreviewUrl(reader.result as string);
+      setOriginalSize(file.size);
+      
+      // 使用 setTimeout 确保 previewUrl 状态更新后才执行压缩
+      // 这有助于UI预览的同步
+      setTimeout(() => {
+        runCompression();
+      }, 0);
+    };
+    reader.onerror = () => {
+      console.error('无法读取文件:', file.name);
+      processNextFile(index);
+    };
+    
+    reader.readAsDataURL(file);
+  };
+  
   // 切换预览模式
   const toggleViewMode = () => {
     setViewMode(prev => prev === 'original' ? 'compressed' : 'original');
@@ -686,16 +355,12 @@ export default function ImageCompress() {
       setCurrentFileIndex(index);
       loadFilePreview(files[index]);
       
-      // 查找该文件是否已处理
       const processed = processedFiles.find(f => f.fileIndex === index);
       if (processed && processed.compressedUrl) {
         setCompressedUrl(processed.compressedUrl);
         setCompressedSize(processed.compressedSize);
         setCompressionRatio(processed.compressionRatio);
-      } else {
-        setCompressedUrl(null);
-        setCompressedSize(0);
-        setCompressionRatio(0);
+        setViewMode('compressed');
       }
     }
   };
@@ -715,31 +380,23 @@ export default function ImageCompress() {
     setSnackbarOpen(true);
     
     try {
-      // 创建JSZip实例
       const zip = new JSZip();
-      
-      // 添加所有处理过的文件到zip
       let fileCount = 0;
       
       processedFiles.forEach(file => {
-        if (!file.compressedUrl) {
-          return;
-        }
+        if (!file.compressedUrl) return;
         
         try {
-          // 获取文件的二进制数据
           const imageData = file.compressedUrl.split(',')[1];
+          const fileType = file.compressedUrl.substring(file.compressedUrl.indexOf(':') + 1, file.compressedUrl.indexOf(';'));
+
+          const fileExtension = fileType === 'image/jpeg' ? 'jpg' : 
+                              fileType === 'image/png' ? 'png' : 
+                              fileType === 'image/webp' ? 'webp' : 'jpg';
           
-          // 获取文件扩展名
-          const fileExtension = format === 'image/jpeg' ? 'jpg' : 
-                              format === 'image/png' ? 'png' : 
-                              format === 'image/webp' ? 'webp' : 'jpg';
-          
-          // 生成文件名
           const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
           const fileName = `${baseName}_compressed.${fileExtension}`;
           
-          // 添加到zip
           zip.file(fileName, imageData, {base64: true});
           fileCount++;
         } catch (error) {
@@ -755,23 +412,17 @@ export default function ImageCompress() {
         return;
       }
       
-      // 生成zip文件
       zip.generateAsync({type: 'blob'})
         .then(content => {
-          // 创建下载链接
           const link = document.createElement('a');
           link.href = URL.createObjectURL(content);
           link.download = `compressed_images_${new Date().getTime()}.zip`;
           
-          // 触发下载
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
           
-          // 释放URL对象
-          setTimeout(() => {
-            URL.revokeObjectURL(link.href);
-          }, 100);
+          setTimeout(() => URL.revokeObjectURL(link.href), 100);
           
           setLoading(false);
           setSnackbarSeverity('success');
@@ -797,32 +448,22 @@ export default function ImageCompress() {
 
   // 取消批处理
   const handleCancelBatchProcessing = () => {
-    console.log('用户取消批量处理');
     setBatchProcessing(false);
     setLoading(false);
-    
-    // 清除超时
-    if (processingTimeout) {
-      clearTimeout(processingTimeout);
-      setProcessingTimeout(null);
-    }
-    
     setSnackbarSeverity('info');
     setSnackbarMessage('批量处理已取消');
     setSnackbarOpen(true);
   };
 
   // 处理清除
-  const handleClear = () => {
-    setSelectedFile(null);
+  const handleClear = (soft = false) => {
+    setFiles([]);
+    setCurrentFileIndex(-1);
     setPreviewUrl(null);
     setCompressedUrl(null);
     setOriginalSize(0);
     setCompressedSize(0);
     setCompressionRatio(0);
-    setOriginalImageBlob(null);
-    setFiles([]);
-    setCurrentFileIndex(-1);
     setBatchMode(false);
     setBatchProgress(0);
     setBatchTotal(0);
@@ -831,16 +472,15 @@ export default function ImageCompress() {
     setBatchProcessing(false);
     setProcessingComplete(false);
     
-    // 清除超时
-    if (processingTimeout) {
-      clearTimeout(processingTimeout);
-      setProcessingTimeout(null);
-    }
-    
-    if (fileInputRef.current) {
+    if (!soft && fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
+
+  // 渲染函数和其他UI部分保持不变
+  // ...
+  // UI代码从这里开始，与您提供的代码基本相同，除了几个按钮的onClick事件
+  // 和disabled状态的逻辑调整。
 
   return (
     <Box>
@@ -934,15 +574,15 @@ export default function ImageCompress() {
                   );
                 })}
               </Box>
-              <Box sx={{ display: 'flex', mt: 2, gap: 1 }}>
+              <Box sx={{ display: 'flex', mt: 2, gap: 1, flexWrap: 'wrap' }}>
                 <Button
                   variant="contained"
                   color="primary"
                   onClick={handleCompressAll}
-                  disabled={loading || batchProcessing}
-                  startIcon={loading || batchProcessing ? <CircularProgress size={20} /> : <AutorenewIcon />}
+                  disabled={batchProcessing}
+                  startIcon={batchProcessing ? <CircularProgress size={20} /> : <AutorenewIcon />}
                 >
-                  {loading || batchProcessing ? '批量压缩中...' : '全部压缩'}
+                  {batchProcessing ? '批量压缩中...' : '全部压缩'}
                 </Button>
                 {processedFiles.length > 0 && (
                   <Button
@@ -950,7 +590,7 @@ export default function ImageCompress() {
                     color="primary"
                     startIcon={<ZipIcon />}
                     onClick={handleDownloadAll}
-                    disabled={loading}
+                    disabled={loading || batchProcessing}
                   >
                     打包下载
                   </Button>
@@ -959,7 +599,7 @@ export default function ImageCompress() {
                   variant="outlined"
                   color="error"
                   startIcon={<DeleteIcon />}
-                  onClick={handleClear}
+                  onClick={() => handleClear(false)}
                 >
                   清除全部
                 </Button>
@@ -982,7 +622,7 @@ export default function ImageCompress() {
                   </Typography>
                   <Slider
                     value={quality}
-                    onChange={handleQualityChange}
+                    onChange={(_event: Event, newValue: number | number[]) => setQuality(newValue as number)}
                     aria-labelledby="quality-slider"
                     min={10}
                     max={100}
@@ -1004,12 +644,10 @@ export default function ImageCompress() {
                       label="最大宽度"
                       type="number"
                       value={maxWidth}
-                      onChange={handleMaxWidthChange}
+                      onChange={(e) => setMaxWidth(parseInt(e.target.value) || 1)}
                       fullWidth
                       variant="outlined"
-                      InputProps={{
-                        inputProps: { min: 1 }
-                      }}
+                      InputProps={{ inputProps: { min: 1 } }}
                     />
                   </Grid>
                   <Grid item xs={6}>
@@ -1017,12 +655,10 @@ export default function ImageCompress() {
                       label="最大高度"
                       type="number"
                       value={maxHeight}
-                      onChange={handleMaxHeightChange}
+                      onChange={(e) => setMaxHeight(parseInt(e.target.value) || 1)}
                       fullWidth
                       variant="outlined"
-                      InputProps={{
-                        inputProps: { min: 1 }
-                      }}
+                      InputProps={{ inputProps: { min: 1 } }}
                     />
                   </Grid>
                 </Grid>
@@ -1033,7 +669,7 @@ export default function ImageCompress() {
                     labelId="format-select-label"
                     value={format}
                     label="输出格式"
-                    onChange={handleFormatChange}
+                    onChange={(e) => setFormat(e.target.value)}
                   >
                     <MenuItem value="image/jpeg">JPEG (有损压缩，适合照片)</MenuItem>
                     <MenuItem value="image/png">PNG (无损压缩，适合图标/插图)</MenuItem>
@@ -1044,12 +680,12 @@ export default function ImageCompress() {
                 <Button
                   variant="contained"
                   color="primary"
-                  onClick={handleSingleCompress}
-                  disabled={loading}
+                  onClick={runCompression}
+                  disabled={loading || batchProcessing}
                   startIcon={loading ? <CircularProgress size={20} /> : <CompressIcon />}
                   fullWidth
                 >
-                  {loading ? '压缩中...' : '压缩图片'}
+                  {loading ? '压缩中...' : '压缩当前图片'}
                 </Button>
                 
                 {compressedUrl && (
@@ -1058,12 +694,10 @@ export default function ImageCompress() {
                       原始大小: {formatFileSize(originalSize)}
                     </Typography>
                     <Typography variant="body2" gutterBottom>
-                      {compressionRatio > 0 ? (
+                      {compressionRatio >= 0 ? (
                         <>压缩后: {formatFileSize(compressedSize)} (减小了 {compressionRatio}%)</>
-                      ) : compressionRatio < 0 ? (
-                        <>压缩后: {formatFileSize(compressedSize)} (增加了 {Math.abs(compressionRatio)}%)</>
                       ) : (
-                        <>压缩后: {formatFileSize(compressedSize)} (大小未变)</>
+                        <>压缩后: {formatFileSize(compressedSize)} (增加了 {Math.abs(compressionRatio)}%)</>
                       )}
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
@@ -1074,21 +708,17 @@ export default function ImageCompress() {
                         onClick={() => {
                           if (!compressedUrl) return;
                           
-                          // 创建下载链接
                           const link = document.createElement('a');
                           link.href = compressedUrl;
                           
-                          // 获取文件扩展名
                           const extension = format === 'image/jpeg' ? 'jpg' : 
                                            format === 'image/png' ? 'png' : 
                                            format === 'image/webp' ? 'webp' : 'jpg';
                           
-                          // 设置文件名
                           const originalName = selectedFile?.name || 'compressed_image';
                           const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
                           link.download = `${baseName}_compressed.${extension}`;
                           
-                          // 触发下载
                           document.body.appendChild(link);
                           link.click();
                           document.body.removeChild(link);
@@ -1099,10 +729,10 @@ export default function ImageCompress() {
                       <Button
                         variant="outlined"
                         color="inherit"
-                        startIcon={viewMode === 'compressed' ? <VisibilityIcon /> : <VisibilityOffIcon />}
+                        startIcon={viewMode === 'original' ? <VisibilityIcon /> : <VisibilityOffIcon />}
                         onClick={toggleViewMode}
                       >
-                        {viewMode === 'compressed' ? '查看原图' : '查看压缩图'}
+                        {viewMode === 'original' ? '查看压缩图' : '查看原图'}
                       </Button>
                     </Box>
                   </Box>
@@ -1114,9 +744,7 @@ export default function ImageCompress() {
               <Paper variant="outlined" sx={{ p: 2, height: '100%', overflow: 'hidden' }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                   <Typography variant="subtitle2">
-                    {compressedUrl ? 
-                      (viewMode === 'compressed' ? '压缩后预览' : '原始图片预览') : 
-                      '原始图片预览'}
+                    {compressedUrl && viewMode === 'compressed' ? '压缩后预览' : '原始图片预览'}
                   </Typography>
                 </Box>
                 
@@ -1133,30 +761,12 @@ export default function ImageCompress() {
                     borderRadius: 1
                   }}
                 >
-                  {compressedUrl && viewMode === 'compressed' ? (
-                    <img
-                      src={compressedUrl}
-                      alt="压缩后预览"
-                      style={{
-                        maxWidth: '100%',
-                        maxHeight: '100%',
-                        objectFit: 'contain'
-                      }}
-                    />
+                  {(compressedUrl && viewMode === 'compressed') ? (
+                    <img src={compressedUrl} alt="压缩后预览" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}/>
                   ) : previewUrl ? (
-                    <img
-                      src={previewUrl}
-                      alt="原始图片预览"
-                      style={{
-                        maxWidth: '100%',
-                        maxHeight: '100%',
-                        objectFit: 'contain'
-                      }}
-                    />
+                    <img src={previewUrl} alt="原始图片预览" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}/>
                   ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      无图片预览
-                    </Typography>
+                    <Typography variant="body2" color="text.secondary">无图片预览</Typography>
                   )}
                 </Box>
               </Paper>
@@ -1164,24 +774,25 @@ export default function ImageCompress() {
           </>
         )}
 
-        {/* 显示批量处理进度 */}
         {batchMode && batchProcessing && (
           <Grid item xs={12}>
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Typography variant="body2" gutterBottom>
-                批量处理进度: {batchProgress}/{batchTotal}
+                批量处理进度: {batchProgress + 1}/{batchTotal}
               </Typography>
               <LinearProgress 
                 variant="determinate" 
-                value={(batchProgress / batchTotal) * 100} 
+                value={((batchProgress + 1) / batchTotal) * 100} 
                 sx={{ mb: 2 }}
               />
+              <Typography variant="caption" sx={{ display: 'block', mb: 2 }}>
+                正在处理: {files[currentFileIndex]?.name || '...'}
+              </Typography>
               <Button
                 variant="outlined"
                 color="error"
                 startIcon={<CancelIcon />}
                 onClick={handleCancelBatchProcessing}
-                disabled={loading}
               >
                 取消批处理
               </Button>
@@ -1189,7 +800,6 @@ export default function ImageCompress() {
           </Grid>
         )}
 
-        {/* 批处理结果列表 */}
         {processedFiles.length > 0 && (
           <Grid item xs={12}>
             <Paper variant="outlined" sx={{ p: 2 }}>
@@ -1206,13 +816,13 @@ export default function ImageCompress() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {processedFiles.map((file, index) => (
-                      <TableRow key={index}>
+                    {processedFiles.sort((a,b) => a.fileIndex - b.fileIndex).map((file) => (
+                      <TableRow key={file.fileIndex} selected={file.fileIndex === currentFileIndex}>
                         <TableCell component="th" scope="row">
                           <Button 
                             color="inherit" 
                             onClick={() => handleSelectFile(file.fileIndex)}
-                            sx={{ textTransform: 'none', justifyContent: 'flex-start', px: 0 }}
+                            sx={{ textTransform: 'none', justifyContent: 'flex-start', px: 0, textAlign: 'left' }}
                           >
                             {file.name}
                           </Button>
@@ -1220,12 +830,10 @@ export default function ImageCompress() {
                         <TableCell align="right">{formatFileSize(file.originalSize)}</TableCell>
                         <TableCell align="right">{formatFileSize(file.compressedSize)}</TableCell>
                         <TableCell align="right">
-                          {file.compressionRatio > 0 ? (
+                          {file.compressionRatio >= 0 ? (
                             <Typography variant="body2" color="success.main">-{file.compressionRatio}%</Typography>
-                          ) : file.compressionRatio < 0 ? (
-                            <Typography variant="body2" color="error.main">+{Math.abs(file.compressionRatio)}%</Typography>
                           ) : (
-                            <Typography variant="body2" color="text.secondary">0%</Typography>
+                            <Typography variant="body2" color="error.main">+{Math.abs(file.compressionRatio)}%</Typography>
                           )}
                         </TableCell>
                         <TableCell align="right">
@@ -1233,23 +841,12 @@ export default function ImageCompress() {
                             <IconButton
                               size="small"
                               onClick={() => {
-                                if (!file.compressedUrl) return;
-                                
-                                // 创建下载链接
                                 const link = document.createElement('a');
-                                link.href = file.compressedUrl;
-                                
-                                // 获取文件扩展名
-                                const extension = format === 'image/jpeg' ? 'jpg' : 
-                                                format === 'image/png' ? 'png' : 
-                                                format === 'image/webp' ? 'webp' : 'jpg';
-                                
-                                // 设置文件名
-                                const originalName = file.name || 'compressed_image';
-                                const baseName = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
+                                link.href = file.compressedUrl!;
+                                const fileType = file.compressedUrl!.substring(file.compressedUrl!.indexOf(':') + 1, file.compressedUrl!.indexOf(';'));
+                                const extension = fileType === 'image/jpeg' ? 'jpg' : fileType === 'image/png' ? 'png' : 'webp';
+                                const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
                                 link.download = `${baseName}_compressed.${extension}`;
-                                
-                                // 触发下载
                                 document.body.appendChild(link);
                                 link.click();
                                 document.body.removeChild(link);
@@ -1268,11 +865,10 @@ export default function ImageCompress() {
           </Grid>
         )}
 
-        {/* 处理完成标识 */}
         {processingComplete && (
           <Grid item xs={12}>
             <Paper variant="outlined" sx={{ p: 2, bgcolor: 'success.lightest' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 <CheckCircleIcon color="success" />
                 <Typography variant="body1" color="success.main">
                   批量处理已完成! 共处理 {processedFiles.length} 个文件。
@@ -1284,7 +880,7 @@ export default function ImageCompress() {
                     size="small"
                     startIcon={<ZipIcon />}
                     onClick={handleDownloadAll}
-                    disabled={loading}
+                    disabled={loading || batchProcessing}
                     sx={{ ml: 'auto' }}
                   >
                     打包下载所有图片
@@ -1296,12 +892,11 @@ export default function ImageCompress() {
         )}
       </Grid>
 
-      {/* 用于图片压缩的隐藏Canvas元素 */}
       <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
       
       <Snackbar
         open={snackbarOpen}
-        autoHideDuration={3000}
+        autoHideDuration={4000}
         onClose={() => setSnackbarOpen(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
@@ -1316,4 +911,4 @@ export default function ImageCompress() {
       </Snackbar>
     </Box>
   );
-} 
+}
