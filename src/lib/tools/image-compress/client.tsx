@@ -89,6 +89,7 @@ export default function ImageCompress() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const batchCancelRef = useRef<boolean>(false);
 
   const selectedFile = files[currentFileIndex] || null;
 
@@ -141,38 +142,98 @@ export default function ImageCompress() {
     };
     reader.onerror = () => {
       console.error('无法读取文件:', file.name);
-      if (batchProcessing) {
-        processNextFile(currentFileIndex);
-      }
     };
     reader.readAsDataURL(file);
   };
 
-  // 移动到下一个文件 (在批量处理链中使用)
-  const processNextFile = (currentIndex: number) => {
-    const nextIndex = currentIndex + 1;
-    if (nextIndex >= files.length) {
-        finishBatchProcessing();
-        return;
-    }
-    // 使用setTimeout确保状态更新和UI响应
-    setTimeout(() => {
-        processFileAtIndex(nextIndex);
-    }, 50); // 短暂延迟以避免UI卡顿
+  // 压缩单个文件的核心函数
+  const compressFile = (file: File, fileIndex: number): Promise<{name: string, originalSize: number, compressedSize: number, compressionRatio: number, fileIndex: number, compressedUrl: string}> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = () => {
+        const img = new Image();
+        img.src = reader.result as string;
+        
+        img.onload = () => {
+          try {
+            let width = img.width;
+            let height = img.height;
+            let needResize = false;
+
+            if (width > maxWidth) {
+              height = Math.floor(height * (maxWidth / width));
+              width = maxWidth;
+              needResize = true;
+            }
+
+            if (height > maxHeight) {
+              width = Math.floor(width * (maxHeight / height));
+              height = maxHeight;
+              needResize = true;
+            }
+
+            const canvas = canvasRef.current;
+            if (!canvas) throw new Error('Canvas 元素不存在');
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('无法获取 Canvas 上下文');
+
+            if (format === 'image/jpeg') {
+              ctx.fillStyle = '#FFFFFF';
+              ctx.fillRect(0, 0, width, height);
+            } else {
+              ctx.clearRect(0, 0, width, height);
+            }
+            
+            ctx.drawImage(img, 0, 0, width, height);
+            const actualQuality = format === 'image/png' ? 1.0 : quality / 100;
+            const compressedDataUrl = canvas.toDataURL(format, actualQuality);
+            const compSize = calculateBase64Size(compressedDataUrl);
+
+            let currentCompressedUrl = compressedDataUrl;
+            let currentCompressedSize = compSize;
+            let currentRatio = Math.round((1 - compSize / file.size) * 100);
+
+            if (compSize >= file.size && !needResize && format === file.type) {
+              currentCompressedUrl = reader.result as string;
+              currentCompressedSize = file.size;
+              currentRatio = 0;
+            } else if (compSize > file.size) {
+              currentRatio = Math.round((compSize / file.size - 1) * 100) * -1;
+            }
+
+            resolve({
+              name: file.name,
+              originalSize: file.size,
+              compressedSize: currentCompressedSize,
+              compressionRatio: currentRatio,
+              fileIndex: fileIndex,
+              compressedUrl: currentCompressedUrl
+            });
+
+          } catch (error) {
+            reject(error);
+          }
+        };
+
+        img.onerror = () => {
+          reject(new Error(`图片加载失败: ${file.name}`));
+        };
+      };
+      
+      reader.onerror = () => {
+        reject(new Error(`文件读取失败: ${file.name}`));
+      };
+      
+      reader.readAsDataURL(file);
+    });
   };
 
-  // 完成批处理
-  const finishBatchProcessing = () => {
-    setBatchProcessing(false);
-    setProcessingComplete(true);
-    setLoading(false);
-    setSnackbarSeverity('success');
-    setSnackbarMessage(`批量处理完成! 共处理 ${processedFiles.length} 个文件`);
-    setSnackbarOpen(true);
-  };
-
-  // 统一的压缩核心函数
-  const runCompression = () => {
+  // 单文件压缩（用于预览和单独压缩）
+  const runCompression = async () => {
     if (!selectedFile || !previewUrl) {
       setSnackbarSeverity('error');
       setSnackbarMessage('请先选择图片');
@@ -180,168 +241,108 @@ export default function ImageCompress() {
       return;
     }
 
-    if (!batchProcessing) { // 只有在非自动批量处理时才显示独立加载状态
-        setLoading(true);
+    setLoading(true);
+    
+    try {
+      const result = await compressFile(selectedFile, currentFileIndex);
+      
+      setCompressedUrl(result.compressedUrl);
+      setCompressedSize(result.compressedSize);
+      setCompressionRatio(result.compressionRatio);
+      setViewMode('compressed');
+
+      // 更新处理结果列表
+      setProcessedFiles(prev => {
+        const existingIndex = prev.findIndex(f => f.fileIndex === currentFileIndex);
+        if (existingIndex >= 0) {
+          const updated = [...prev];
+          updated[existingIndex] = result;
+          return updated;
+        } else {
+          return [...prev, result];
+        }
+      });
+      
+      let snackbarMsg = '图片压缩成功!';
+      let snackbarSev: 'success' | 'info' | 'warning' = 'success';
+      
+      if (result.compressionRatio === 0) {
+        snackbarMsg = '图片已经是最优化的，无需进一步压缩';
+        snackbarSev = 'info';
+      } else if (result.compressionRatio < 0) {
+        snackbarMsg = '调整后图片大小增加，请考虑使用不同的设置';
+        snackbarSev = 'warning';
+      }
+      
+      setSnackbarSeverity(snackbarSev);
+      setSnackbarMessage(snackbarMsg);
+      setSnackbarOpen(true);
+      
+    } catch (error) {
+      console.error('压缩过程中发生错误:', error);
+      setSnackbarSeverity('error');
+      setSnackbarMessage('图片压缩过程中发生错误');
+      setSnackbarOpen(true);
     }
     
-    const img = new Image();
-    img.src = previewUrl;
-
-    img.onload = () => {
-      try {
-        let width = img.width;
-        let height = img.height;
-        let needResize = false;
-
-        if (width > maxWidth) {
-          height = Math.floor(height * (maxWidth / width));
-          width = maxWidth;
-          needResize = true;
-        }
-
-        if (height > maxHeight) {
-          width = Math.floor(width * (maxHeight / height));
-          height = maxHeight;
-          needResize = true;
-        }
-
-        const canvas = canvasRef.current;
-        if (!canvas) throw new Error('Canvas 元素不存在');
-        
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('无法获取 Canvas 上下文');
-
-        if (format === 'image/jpeg') {
-          ctx.fillStyle = '#FFFFFF';
-          ctx.fillRect(0, 0, width, height);
-        } else {
-          ctx.clearRect(0, 0, width, height);
-        }
-        
-        ctx.drawImage(img, 0, 0, width, height);
-        const actualQuality = format === 'image/png' ? 1.0 : quality / 100;
-        const compressedDataUrl = canvas.toDataURL(format, actualQuality);
-        const compSize = calculateBase64Size(compressedDataUrl);
-
-        let snackbarMsg = '图片压缩成功!';
-        let snackbarSev: 'success' | 'info' | 'warning' = 'success';
-        let currentCompressedUrl = compressedDataUrl;
-        let currentCompressedSize = compSize;
-        let currentRatio = Math.round((1 - compSize / originalSize) * 100);
-
-        if (compSize >= originalSize && !needResize && format === selectedFile.type) {
-          currentCompressedUrl = previewUrl;
-          currentCompressedSize = originalSize;
-          currentRatio = 0;
-          snackbarMsg = '图片已经是最优化的，无需进一步压缩';
-          snackbarSev = 'info';
-        } else if (compSize > originalSize) {
-          currentRatio = Math.round((compSize / originalSize - 1) * 100) * -1;
-          snackbarMsg = '调整后图片大小增加，请考虑使用不同的设置';
-          snackbarSev = 'warning';
-        }
-
-        setCompressedUrl(currentCompressedUrl);
-        setCompressedSize(currentCompressedSize);
-        setCompressionRatio(currentRatio);
-        setViewMode('compressed');
-
-        const processedFile = {
-            name: selectedFile.name,
-            originalSize: originalSize,
-            compressedSize: currentCompressedSize,
-            compressionRatio: currentRatio,
-            fileIndex: currentFileIndex,
-            compressedUrl: currentCompressedUrl
-        };
-
-        setProcessedFiles(prev => {
-            const existingIndex = prev.findIndex(f => f.fileIndex === currentFileIndex);
-            if (existingIndex >= 0) {
-              const updated = [...prev];
-              updated[existingIndex] = processedFile;
-              return updated;
-            } else {
-              return [...prev, processedFile];
-            }
-        });
-        
-        if (!batchProcessing) {
-            setLoading(false);
-            setSnackbarSeverity(snackbarSev);
-            setSnackbarMessage(snackbarMsg);
-            setSnackbarOpen(true);
-        } else {
-            // *** 这是关键的修复点 ***
-            // 成功处理完一个文件后，调用 processNextFile 继续处理链条
-            processNextFile(currentFileIndex);
-        }
-
-      } catch (error) {
-        console.error('压缩过程中发生错误:', error);
-        if (!batchProcessing) {
-            setLoading(false);
-            setSnackbarSeverity('error');
-            setSnackbarMessage('图片压缩过程中发生错误');
-            setSnackbarOpen(true);
-        } else {
-            processNextFile(currentFileIndex); // 出错了也要继续下一个
-        }
-      }
-    };
-
-    img.onerror = () => {
-      console.error('图片加载失败:', selectedFile.name);
-      if (!batchProcessing) {
-        setLoading(false);
-        setSnackbarSeverity('error');
-        setSnackbarMessage('图片加载失败');
-        setSnackbarOpen(true);
-      } else {
-        processNextFile(currentFileIndex); // 加载失败，继续下一个
-      }
-    };
+    setLoading(false);
   };
 
-  // 全部压缩
-  const handleCompressAll = () => {
+  // 批量压缩所有文件
+  const handleCompressAll = async () => {
     if (files.length === 0) return;
     
     setBatchProcessing(true);
     setProcessingComplete(false);
     setProcessedFiles([]);
     setBatchProgress(0);
+    setLoading(true);
+    batchCancelRef.current = false;
     
-    // 从第一个文件开始处理
-    processFileAtIndex(0);
-  };
-  
-  // 处理指定索引的文件
-  const processFileAtIndex = (index: number) => {
-    setBatchProgress(index);
-    setCurrentFileIndex(index);
-    
-    const file = files[index];
-    const reader = new FileReader();
-    
-    reader.onload = () => {
-      setPreviewUrl(reader.result as string);
-      setOriginalSize(file.size);
+    try {
+      const results = [];
       
-      // 使用 setTimeout 确保 previewUrl 状态更新后才执行压缩
-      // 这有助于UI预览的同步
-      setTimeout(() => {
-        runCompression();
-      }, 0);
-    };
-    reader.onerror = () => {
-      console.error('无法读取文件:', file.name);
-      processNextFile(index);
-    };
-    
-    reader.readAsDataURL(file);
+      for (let i = 0; i < files.length; i++) {
+        if (batchCancelRef.current) break; // 如果用户取消了批处理，停止处理
+        
+        setBatchProgress(i);
+        setCurrentFileIndex(i);
+        
+        try {
+          const result = await compressFile(files[i], i);
+          results.push(result);
+          
+          // 更新处理结果列表
+          setProcessedFiles(prev => [...prev, result]);
+          
+          // 更新当前文件的预览（总是更新最后处理的文件）
+          setCompressedUrl(result.compressedUrl);
+          setCompressedSize(result.compressedSize);
+          setCompressionRatio(result.compressionRatio);
+          setViewMode('compressed');
+          
+        } catch (error) {
+          console.error(`处理文件 ${files[i].name} 时出错:`, error);
+          // 继续处理下一个文件
+        }
+      }
+      
+      setBatchProcessing(false);
+      setProcessingComplete(true);
+      setLoading(false);
+      
+      setSnackbarSeverity('success');
+      setSnackbarMessage(`批量处理完成! 共处理 ${results.length} 个文件`);
+      setSnackbarOpen(true);
+      
+    } catch (error) {
+      console.error('批量处理过程中发生错误:', error);
+      setBatchProcessing(false);
+      setLoading(false);
+      setSnackbarSeverity('error');
+      setSnackbarMessage('批量处理过程中发生错误');
+      setSnackbarOpen(true);
+    }
   };
   
   // 切换预览模式
@@ -448,6 +449,7 @@ export default function ImageCompress() {
 
   // 取消批处理
   const handleCancelBatchProcessing = () => {
+    batchCancelRef.current = true;
     setBatchProcessing(false);
     setLoading(false);
     setSnackbarSeverity('info');
