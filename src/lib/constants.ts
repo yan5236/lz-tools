@@ -71,6 +71,13 @@ export const tools: Tool[] = [
     description: '多功能计算器，支持标准、科学、程序员计算，单位转换和汇率换算',
     icon: 'calculate',
     category: '计算器'
+  },
+  {
+    slug: 'github-accelerator',
+    title: 'GitHub加速下载',
+    description: '通过公共代理加速GitHub文件下载，支持多个代理源',
+    icon: 'download',
+    category: '开发工具'
   }
 ];
 

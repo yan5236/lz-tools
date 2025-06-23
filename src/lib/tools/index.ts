@@ -116,6 +116,14 @@ export const tools = [
     category: '计算器',
     icon: 'calculate',
     featured: true
+  },
+  {
+    slug: 'github-accelerator',
+    title: 'GitHub加速下载',
+    description: '通过公共代理加速GitHub文件下载，支持多个代理源，解决国内访问GitHub慢的问题。',
+    category: '开发工具',
+    icon: 'download',
+    featured: true
   }
 ];
 

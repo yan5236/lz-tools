@@ -17,10 +17,9 @@ function isValidToolId(slug: string): boolean {
 }
 
 // 页面组件 - 使用async函数处理参数
-export default async function Page({ params }: { params: { slug: string } }) {
-  // 在Next.js 14 App Router中，params已经是解析好的，不需要额外的await
-  // 但我们需要确保我们不会同步使用它
-  const { slug } = params;
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  // 在Next.js 15中，params需要await
+  const { slug } = await params;
   
   // 如果工具ID无效，返回404
   if (!isValidToolId(slug)) {
