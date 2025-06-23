@@ -85,6 +85,13 @@ export const tools: Tool[] = [
     description: '通过公共代理加速GitHub文件下载，支持多个代理源',
     icon: 'download',
     category: '开发工具'
+  },
+  {
+    slug: 'qr-code',
+    title: '二维码工具',
+    description: '生成自定义二维码和解码二维码图片，支持颜色、尺寸、LOGO等个性化设置',
+    icon: 'qr_code',
+    category: '编码工具'
   }
 ];
 

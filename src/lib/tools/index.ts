@@ -132,6 +132,14 @@ export const tools = [
     category: '开发工具',
     icon: 'download',
     featured: true
+  },
+  {
+    slug: 'qr-code',
+    title: '二维码工具',
+    description: '生成自定义二维码和解码二维码图片，支持颜色、尺寸、容错级别等个性化设置。',
+    category: '编码工具',
+    icon: 'qr_code',
+    featured: true
   }
 ];
 
