@@ -67,8 +67,8 @@ const PROXY_SERVICES = [
     description: 'ghproxy镜像站点'
   },
   {
-    name: 'gh.api.99988866.xyz',
-    url: 'https://gh.api.99988866.xyz/',
+    name: 'gh-proxy.net',
+    url: 'https://gh-proxy.net/',
     description: '高速GitHub代理'
   },
   {
