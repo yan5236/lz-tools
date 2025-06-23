@@ -57,13 +57,13 @@ const PROXY_SERVICES = [
     description: '站长自建 - 高速稳定的GitHub代理服务'
   },
   {
-    name: 'ghproxy.com',
-    url: 'https://ghproxy.com/',
+    name: 'gh-proxy.com',
+    url: 'https://gh-proxy.com/',
     description: '稳定快速的GitHub代理服务'
   },
   {
-    name: 'mirror.ghproxy.com',
-    url: 'https://mirror.ghproxy.com/',
+    name: 'cdn.gh-proxy.com',
+    url: 'https://cdn.gh-proxy.com/',
     description: 'ghproxy镜像站点'
   },
   {
@@ -79,6 +79,11 @@ const PROXY_SERVICES = [
   {
     name: 'gh.ddlc.top',
     url: 'https://gh.ddlc.top/',
+    description: 'GitHub加速代理服务'
+  },
+  {
+    name: 'ui.ghproxy.cc',
+    url: 'https://ui.ghproxy.cc/',
     description: 'GitHub加速代理服务'
   }
 ];
