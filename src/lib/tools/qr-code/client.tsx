@@ -158,7 +158,7 @@ export default function QRCodeTool() {
       console.error('生成二维码失败:', error);
       showSnackbar('生成二维码失败，请检查输入内容', 'error');
     }
-  }, [text, qrOptions]);
+  }, [text, qrOptions, imageFormat]);
 
   // 下载二维码
   const downloadQRCode = () => {
@@ -518,20 +518,24 @@ export default function QRCodeTool() {
                          justifyContent: 'center',
                          flexDirection: 'column',
                          gap: 2,
-                         p: 2
+                         p: 2,
+                         position: 'relative'
                        }}
                      >
-                       {qrCodeDataUrl ? (
-                         <canvas 
-                           ref={canvasRef} 
-                           style={{ 
-                             maxWidth: '100%', 
-                             height: 'auto',
-                             borderRadius: 8,
-                             boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                           }} 
-                         />
-                       ) : (
+                       {/* Canvas元素 - 始终存在但根据状态控制显示 */}
+                       <canvas 
+                         ref={canvasRef} 
+                         style={{ 
+                           maxWidth: '100%', 
+                           height: 'auto',
+                           borderRadius: 8,
+                           boxShadow: qrCodeDataUrl ? '0 4px 12px rgba(0,0,0,0.15)' : 'none',
+                           display: qrCodeDataUrl ? 'block' : 'none'
+                         }} 
+                       />
+                       
+                       {/* 空状态提示 */}
+                       {!qrCodeDataUrl && (
                          <Box sx={{ 
                            display: 'flex', 
                            flexDirection: 'column', 
