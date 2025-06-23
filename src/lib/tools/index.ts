@@ -62,6 +62,14 @@ export const tools = [
     featured: true
   },
   {
+    slug: 'url-shortener',
+    title: '短链接生成器',
+    description: '将长网址转换为短链接，支持多个免费服务提供商，无需注册或API密钥。',
+    category: '网络工具',
+    icon: 'link_off',
+    featured: true
+  },
+  {
     slug: 'base64',
     title: 'Base64编解码',
     description: '编码或解码Base64字符串',

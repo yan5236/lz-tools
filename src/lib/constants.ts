@@ -24,6 +24,13 @@ export const tools: Tool[] = [
     category: '编码工具'
   },
   {
+    slug: 'url-shortener',
+    title: '短链接生成器',
+    description: '将长网址转换为短链接，支持多个服务提供商',
+    icon: 'link_off',
+    category: '网络工具'
+  },
+  {
     slug: 'timestamp',
     title: '时间戳转换',
     description: '在不同时间格式之间转换',
@@ -92,5 +99,6 @@ export const categoryIcons: Record<string, string> = {
   '设计工具': 'brush',
   '图像工具': 'image',
   '开发工具': 'developer_mode',
-  '计算器': 'calculate'
+  '计算器': 'calculate',
+  '网络工具': 'public'
 }; 
