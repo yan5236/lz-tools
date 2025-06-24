@@ -6,6 +6,7 @@ export const categoryIcons: Record<string, string> = {
   '设计工具': 'brush',
   '图像工具': 'image',
   '文本工具': 'text_format',
+  '媒体工具': 'video_library',
   '网络工具': 'public',
   '开发工具': 'developer_mode',
   '计算器': 'calculate'
@@ -139,6 +140,14 @@ export const tools = [
     description: '生成自定义二维码和解码二维码图片，支持颜色、尺寸、容错级别等个性化设置。',
     category: '编码工具',
     icon: 'qr_code',
+    featured: true
+  },
+  {
+    slug: 'video-audio-extractor',
+    title: '视频提取音频',
+    description: '从视频文件中提取音频轨道，支持多种音频格式输出，适用于制作音频播客、提取背景音乐等场景。',
+    category: '媒体工具',
+    icon: 'audiotrack',
     featured: true
   }
 ];
