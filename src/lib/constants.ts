@@ -99,6 +99,13 @@ export const tools: Tool[] = [
     description: '从视频文件中提取音频轨道，支持多种音频格式输出',
     icon: 'audiotrack',
     category: '媒体工具'
+  },
+  {
+    slug: 'html-runner',
+    title: 'HTML在线运行',
+    description: '在线编辑和运行HTML代码，支持HTML、CSS、JavaScript，移动端新窗口运行',
+    icon: 'code',
+    category: '开发工具'
   }
 ];
 

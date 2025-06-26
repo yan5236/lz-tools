@@ -71,6 +71,14 @@ export const tools = [
     featured: true
   },
   {
+    slug: 'html-runner',
+    title: 'HTML在线运行',
+    description: '在线编辑和运行HTML代码，支持HTML、CSS、JavaScript，移动端新窗口运行，桌面端实时预览。',
+    category: '开发工具',
+    icon: 'code',
+    featured: true
+  },
+  {
     slug: 'base64',
     title: 'Base64编解码',
     description: '编码或解码Base64字符串',
